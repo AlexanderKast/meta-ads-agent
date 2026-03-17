@@ -1,11 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import type { AdVariation, Platform, Objective } from "@/lib/types";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useCopy } from "@/hooks/use-copy";
 import { AdRefine } from "./ad-refine";
 import { AdScore } from "./ad-score";
+import { AdPublisher } from "./ad-publisher";
+
+const PUBLISHABLE_PLATFORMS = new Set(["meta", "google", "tiktok", "linkedin"]);
 
 interface AdCardProps {
   variation: AdVariation;
@@ -30,6 +34,8 @@ function formatVariation(v: AdVariation): string {
 
 export function AdCard({ variation, index, platform, objective, onRefine }: AdCardProps) {
   const { copy, copied } = useCopy();
+  const [publisherOpen, setPublisherOpen] = useState(false);
+  const canPublish = platform && PUBLISHABLE_PLATFORMS.has(platform);
 
   return (
     <Card variant="bordered" className="space-y-3">
@@ -81,14 +87,33 @@ export function AdCard({ variation, index, platform, objective, onRefine }: AdCa
 
       <div className="pt-2 border-t border-border/50 flex items-center justify-between">
         <Badge>CTA: {variation.cta}</Badge>
-        {platform && onRefine && (
-          <AdRefine
-            variation={variation}
-            platform={platform}
-            onRefine={(refined) => onRefine(index, refined)}
-          />
-        )}
+        <div className="flex items-center gap-2">
+          {platform && onRefine && (
+            <AdRefine
+              variation={variation}
+              platform={platform}
+              onRefine={(refined) => onRefine(index, refined)}
+            />
+          )}
+          {canPublish && (
+            <button
+              onClick={() => setPublisherOpen(true)}
+              className="text-xs text-primary hover:text-primary-hover transition-colors px-2 py-1 rounded-lg hover:bg-primary/10 font-medium"
+            >
+              Publicar
+            </button>
+          )}
+        </div>
       </div>
+
+      {canPublish && (
+        <AdPublisher
+          variation={variation}
+          platform={platform}
+          isOpen={publisherOpen}
+          onClose={() => setPublisherOpen(false)}
+        />
+      )}
     </Card>
   );
 }

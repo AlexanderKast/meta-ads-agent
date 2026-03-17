@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,14 @@ const PLATFORMS = [
 ];
 
 export default function IntegrationsPage() {
+  return (
+    <Suspense fallback={<div className="text-text-dim">Cargando...</div>}>
+      <IntegrationsContent />
+    </Suspense>
+  );
+}
+
+function IntegrationsContent() {
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const searchParams = useSearchParams();

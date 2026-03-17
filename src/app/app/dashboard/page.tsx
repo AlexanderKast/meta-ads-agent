@@ -1,73 +1,123 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card } from "@/components/ui/card";
-import Link from "next/link";
+import { KPICards } from "@/components/dashboard/kpi-cards";
+import { LineChartComponent } from "@/components/charts/line-chart";
+import { PieChartComponent } from "@/components/charts/pie-chart";
+import { TopCampaigns } from "@/components/dashboard/top-campaigns";
+import { AlertsWidget } from "@/components/dashboard/alerts-widget";
+import { cn } from "@/lib/utils";
 
-interface UsageData {
-  plan: string;
-  generationsUsed: number;
-  generationsLimit: number;
+interface KPIData {
+  spend: number;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+  cpc: number;
+  conversions: number;
+  roas: number;
+  prevSpend?: number;
+  prevImpressions?: number;
+  prevClicks?: number;
+  prevCtr?: number;
+  prevCpc?: number;
+  prevConversions?: number;
+  prevRoas?: number;
+}
+
+interface DailyData {
+  date: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+}
+
+interface PlatformData {
+  platform: string;
+  spend: number;
+  impressions: number;
+}
+
+interface DashboardData {
+  kpis: KPIData;
+  daily: DailyData[];
+  byPlatform: PlatformData[];
+}
+
+function SkeletonBlock({ className }: { className?: string }) {
+  return (
+    <div className={cn("animate-pulse rounded-xl bg-surface border border-border", className)} />
+  );
 }
 
 export default function DashboardPage() {
-  const [usage, setUsage] = useState<UsageData | null>(null);
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/usage").then((r) => r.json()).then(setUsage).catch(() => {});
+    fetch("/api/metrics/dashboard")
+      .then((r) => r.json())
+      .then((d) => setData(d))
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
-  const pct = usage ? Math.min((usage.generationsUsed / usage.generationsLimit) * 100, 100) : 0;
-
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="max-w-7xl space-y-6">
       <h1 className="text-2xl font-bold text-text-primary">Dashboard</h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card variant="bordered" className="space-y-2">
-          <span className="text-xs text-text-dim">Plan actual</span>
-          <p className="text-2xl font-bold text-primary capitalize">{usage?.plan || "free"}</p>
-        </Card>
+      {/* KPI Cards */}
+      {loading || !data ? (
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+          {Array.from({ length: 7 }).map((_, i) => (
+            <SkeletonBlock key={i} className="h-24 p-4" />
+          ))}
+        </div>
+      ) : (
+        <KPICards data={data.kpis} />
+      )}
 
-        <Card variant="bordered" className="space-y-2">
-          <span className="text-xs text-text-dim">Generaciones este mes</span>
-          <p className="text-2xl font-bold text-text-primary">
-            {usage?.generationsUsed || 0}
-            <span className="text-sm text-text-dim font-normal">
-              /{usage?.generationsLimit === Infinity ? "∞" : usage?.generationsLimit || 10}
-            </span>
-          </p>
-          <div className="w-full bg-surface rounded-full h-2">
-            <div
-              className="bg-primary rounded-full h-2 transition-all"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-        </Card>
+      {/* Charts row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {loading || !data ? (
+          <>
+            <SkeletonBlock className="lg:col-span-2 h-80" />
+            <SkeletonBlock className="h-80" />
+          </>
+        ) : (
+          <>
+            <div className="lg:col-span-2">
+              <h2 className="text-sm font-semibold text-text-primary mb-2">Spend Over Time</h2>
+              <LineChartComponent
+                data={data.daily}
+                dataKeys={[
+                  { key: "spend", color: "#f97316", label: "Spend" },
+                  { key: "clicks", color: "#ec4899", label: "Clicks" },
+                ]}
+                xAxisKey="date"
+              />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-text-primary mb-2">Spend by Platform</h2>
+              <PieChartComponent data={data.byPlatform} />
+            </div>
+          </>
+        )}
+      </div>
 
-        <Card variant="bordered" className="space-y-2">
-          <span className="text-xs text-text-dim">Acciones rapidas</span>
-          <div className="space-y-2">
-            <Link
-              href="/app/generate"
-              className="block text-sm text-primary hover:text-primary-hover transition-colors"
-            >
-              ✨ Generar anuncios
-            </Link>
-            <Link
-              href="/app/templates"
-              className="block text-sm text-text-muted hover:text-text-primary transition-colors"
-            >
-              📁 Ver templates
-            </Link>
-            <Link
-              href="/app/history"
-              className="block text-sm text-text-muted hover:text-text-primary transition-colors"
-            >
-              📋 Ver historial
-            </Link>
-          </div>
-        </Card>
+      {/* Bottom row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {loading ? (
+          <>
+            <SkeletonBlock className="h-72" />
+            <SkeletonBlock className="h-72" />
+          </>
+        ) : (
+          <>
+            <TopCampaigns />
+            <AlertsWidget />
+          </>
+        )}
       </div>
     </div>
   );

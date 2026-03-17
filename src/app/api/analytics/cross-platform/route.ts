@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase, getUserId } from "@/lib/auth-helper";
-import { getPlatformClient, isSupportedPlatform } from "@/lib/platforms";
 import { decryptToken } from "@/lib/platforms/token-manager";
+import { getAccountInsights } from "@/lib/platforms/meta";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -19,93 +19,53 @@ export async function GET(req: NextRequest) {
   const endDate = searchParams.get("endDate") || now.toISOString().split("T")[0];
   const accountId = searchParams.get("accountId");
 
-  // Get connected accounts
-  let query = supabase
-    .from("connected_accounts")
-    .select("*")
-    .eq("user_id", userId)
-    .eq("is_active", true);
-
-  if (accountId) query = query.eq("id", accountId);
-
-  const { data: accounts } = await query;
-
   const emptyResponse = {
     byPlatform: [],
     daily: [],
     totals: { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0, ctr: 0, cpc: 0, cpm: 0, roas: 0 },
   };
 
-  if (!accounts || accounts.length === 0) {
-    return NextResponse.json(emptyResponse);
-  }
+  let query = supabase.from("connected_accounts").select("*").eq("user_id", userId).eq("is_active", true);
+  if (accountId) query = query.eq("id", accountId);
+  const { data: accounts } = await query;
 
-  // Fetch campaign data from each platform
-  interface MetricRow { date: string; spend: number; impressions: number; clicks: number; conversions: number; revenue: number; platform: string; }
-  const allMetrics: MetricRow[] = [];
+  if (!accounts || accounts.length === 0) return NextResponse.json(emptyResponse);
 
-  for (const account of accounts) {
-    if (!isSupportedPlatform(account.platform)) continue;
-    try {
-      const client = getPlatformClient(account.platform);
-      const token = decryptToken(account.access_token);
-      const tokens = { accessToken: token };
-
-      // Get campaigns with spend data
-      const campaigns = await client.listCampaigns(tokens, account.platform_account_id);
-
-      // Fetch daily metrics for campaigns that have spend (limit to top 20 by spend)
-      const activeCampaigns = campaigns
-        .filter(c => Number(c.spend) > 0 || c.status === "active")
-        .sort((a, b) => (Number(b.spend) || 0) - (Number(a.spend) || 0))
-        .slice(0, 20);
-
-      const results = await Promise.allSettled(
-        activeCampaigns.map(campaign =>
-          client.getMetrics(tokens, campaign.id, account.platform_account_id, { start: startDate, end: endDate })
-        )
-      );
-
-      for (const result of results) {
-        if (result.status === "fulfilled") {
-          for (const m of result.value) {
-            allMetrics.push({ ...m, platform: account.platform });
-          }
-        }
-      }
-    } catch (err) {
-      console.error(`Analytics: error fetching ${account.platform}:`, err);
-    }
-  }
-
-  if (allMetrics.length === 0) {
-    return NextResponse.json(emptyResponse);
-  }
-
-  // Aggregate by platform
+  // Fetch account-level insights per platform
   const platformAgg: Record<string, { spend: number; impressions: number; clicks: number; conversions: number; revenue: number }> = {};
   const dailyMap: Record<string, Record<string, { spend: number; impressions: number; clicks: number; conversions: number; revenue: number }>> = {};
 
-  for (const row of allMetrics) {
-    const { platform, date, spend, impressions, clicks, conversions, revenue } = row;
+  for (const account of accounts) {
+    if (account.platform !== "meta") continue;
+    try {
+      const token = decryptToken(account.access_token);
+      const insights = await getAccountInsights(token, account.platform_account_id, { start: startDate, end: endDate });
 
-    if (!platformAgg[platform]) platformAgg[platform] = { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0 };
-    platformAgg[platform].spend += spend;
-    platformAgg[platform].impressions += impressions;
-    platformAgg[platform].clicks += clicks;
-    platformAgg[platform].conversions += conversions;
-    platformAgg[platform].revenue += revenue;
+      const platform = account.platform;
+      if (!platformAgg[platform]) platformAgg[platform] = { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0 };
 
-    if (!dailyMap[date]) dailyMap[date] = {};
-    if (!dailyMap[date][platform]) dailyMap[date][platform] = { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0 };
-    dailyMap[date][platform].spend += spend;
-    dailyMap[date][platform].impressions += impressions;
-    dailyMap[date][platform].clicks += clicks;
-    dailyMap[date][platform].conversions += conversions;
-    dailyMap[date][platform].revenue += revenue;
+      for (const row of insights) {
+        platformAgg[platform].spend += row.spend;
+        platformAgg[platform].impressions += row.impressions;
+        platformAgg[platform].clicks += row.clicks;
+        platformAgg[platform].conversions += row.conversions;
+        platformAgg[platform].revenue += row.revenue;
+
+        if (!dailyMap[row.date]) dailyMap[row.date] = {};
+        if (!dailyMap[row.date][platform]) dailyMap[row.date][platform] = { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0 };
+        dailyMap[row.date][platform].spend += row.spend;
+        dailyMap[row.date][platform].impressions += row.impressions;
+        dailyMap[row.date][platform].clicks += row.clicks;
+        dailyMap[row.date][platform].conversions += row.conversions;
+        dailyMap[row.date][platform].revenue += row.revenue;
+      }
+    } catch (err) {
+      console.error(`Analytics error for ${account.account_name}:`, err);
+    }
   }
 
   const allPlatforms = Object.keys(platformAgg);
+  if (allPlatforms.length === 0) return NextResponse.json(emptyResponse);
 
   const byPlatform = allPlatforms.map(platform => {
     const p = platformAgg[platform];

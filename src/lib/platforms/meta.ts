@@ -303,3 +303,57 @@ export async function getAdsFromAccount(token: string, accountId: string): Promi
 
   return ads;
 }
+
+/** Fetch account-level daily insights (single API call, much faster than per-campaign) */
+export async function getAccountInsights(token: string, accountId: string, dateRange: { start: string; end: string }) {
+  const data = await fbApi(
+    `/${accountId}/insights?fields=impressions,clicks,spend,reach,actions,action_values,cpc,ctr,cpm&time_range={"since":"${dateRange.start}","until":"${dateRange.end}"}&time_increment=1`,
+    token
+  );
+  return (data.data || []).map((d: Record<string, unknown>) => {
+    const actions = d.actions as Array<{ action_type: string; value: string }> || [];
+    const actionValues = d.action_values as Array<{ action_type: string; value: string }> || [];
+    const conversions = actions.find(a => a.action_type === "offsite_conversion")?.value || "0";
+    const revenue = actionValues.find(a => a.action_type === "offsite_conversion")?.value || "0";
+    return {
+      date: d.date_start as string,
+      impressions: Number(d.impressions) || 0,
+      reach: Number(d.reach) || 0,
+      clicks: Number(d.clicks) || 0,
+      spend: Number(d.spend) || 0,
+      cpc: Number(d.cpc) || 0,
+      ctr: Number(d.ctr) || 0,
+      cpm: Number(d.cpm) || 0,
+      conversions: Number(conversions),
+      revenue: Number(revenue),
+    };
+  });
+}
+
+/** Fetch campaigns with aggregated insights in ONE call */
+export async function getCampaignsWithInsights(token: string, accountId: string, dateRange: { start: string; end: string }) {
+  const data = await fbApi(
+    `/${accountId}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget,insights.time_range({"since":"${dateRange.start}","until":"${dateRange.end}"}){impressions,clicks,spend,actions,action_values}&limit=200`,
+    token
+  );
+  return (data.data || []).map((c: Record<string, unknown>) => {
+    const insights = (c.insights as Record<string, unknown>)?.data as Array<Record<string, unknown>> || [];
+    const row = insights[0] || {};
+    const actions = row.actions as Array<{ action_type: string; value: string }> || [];
+    const actionValues = row.action_values as Array<{ action_type: string; value: string }> || [];
+    const conversions = actions.find(a => a.action_type === "offsite_conversion")?.value || "0";
+    const revenue = actionValues.find(a => a.action_type === "offsite_conversion")?.value || "0";
+    return {
+      id: c.id as string,
+      name: c.name as string,
+      status: (c.status as string || "").toLowerCase(),
+      objective: c.objective as string || "",
+      budget: ((c.daily_budget || c.lifetime_budget) as number) / 100 || 0,
+      spend: Number(row.spend) || 0,
+      impressions: Number(row.impressions) || 0,
+      clicks: Number(row.clicks) || 0,
+      conversions: Number(conversions),
+      revenue: Number(revenue),
+    };
+  });
+}

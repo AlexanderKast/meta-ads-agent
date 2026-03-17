@@ -137,6 +137,8 @@ function IntegrationsContent() {
   const [loadingMeta, setLoadingMeta] = useState(false);
   const [loadingAds, setLoadingAds] = useState<string | null>(null);
   const [expandedAccount, setExpandedAccount] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<any>(null);
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -176,6 +178,29 @@ function IntegrationsContent() {
     window.location.href = `/api/platforms/${platformId}/oauth`;
   }
 
+  async function handleSync(platform?: string) {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch("/api/platforms/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platform, days: 30 }),
+      });
+      const data = await res.json();
+      setSyncResult(data);
+      if (res.ok) {
+        toast(`Sincronizado: ${data.campaigns_discovered} campañas descubiertas, ${data.metrics_synced} métricas`, "success");
+      } else {
+        toast(data.error || "Error al sincronizar", "error");
+      }
+    } catch {
+      toast("Error de conexión", "error");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   async function loadMetaAccounts() {
     setLoadingMeta(true);
     try {
@@ -205,6 +230,22 @@ function IntegrationsContent() {
         <p className="text-sm text-text-muted">
           Conecta tus cuentas de anuncios para publicar campanas y leer metricas directamente.
         </p>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => handleSync()}
+          disabled={syncing || accounts.length === 0}
+        >
+          {syncing ? "Sincronizando..." : "🔄 Sincronizar Todas las Métricas"}
+        </Button>
+        {syncResult && (
+          <span className="text-xs text-text-muted">
+            {syncResult.campaigns_discovered} campañas · {syncResult.metrics_synced} métricas · {syncResult.errors?.length || 0} errores
+          </span>
+        )}
       </div>
 
       {loading ? (
@@ -238,9 +279,14 @@ function IntegrationsContent() {
                     <p className="text-xs text-text-dim">
                       Conectado: {new Date(account.created_at).toLocaleDateString()}
                     </p>
-                    <Button variant="ghost" size="sm" onClick={() => handleDisconnect(account.id)}>
-                      Desconectar
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => handleDisconnect(account.id)}>
+                        Desconectar
+                      </Button>
+                      <Button variant="secondary" size="sm" onClick={() => handleSync(p.id)} disabled={syncing}>
+                        {syncing ? "..." : "Sincronizar"}
+                      </Button>
+                    </div>
 
                     {p.id === "meta" && (
                       <div className="border-t border-border-dim pt-3 space-y-3">

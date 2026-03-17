@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { getUserId } from "@/lib/auth-helper";
 import { getPlatformClient, isSupportedPlatform } from "@/lib/platforms";
 import { decryptToken } from "@/lib/platforms/token-manager";
 
@@ -13,28 +14,25 @@ export async function GET(request: Request) {
   }
 
   const supabase = createServiceClient();
-  let synced = 0;
+  const userId = getUserId();
+  let campaignsDiscovered = 0;
+  let metricsSynced = 0;
 
   try {
     // Fetch all active connected accounts
     const { data: accounts, error: accountsError } = await supabase
       .from("connected_accounts")
       .select("*")
-      .eq("status", "active");
+      .eq("is_active", true);
 
-    if (accountsError) {
-      console.error("Error fetching accounts:", accountsError);
-      return NextResponse.json({ error: "Failed to fetch accounts" }, { status: 500 });
+    if (accountsError || !accounts || accounts.length === 0) {
+      return NextResponse.json({ synced: 0, message: accountsError?.message || "No active accounts" });
     }
 
-    if (!accounts || accounts.length === 0) {
-      return NextResponse.json({ synced: 0, message: "No active accounts" });
-    }
-
-    // Date range: last 3 days
+    // Date range: last 7 days
     const end = new Date();
     const start = new Date();
-    start.setDate(start.getDate() - 3);
+    start.setDate(start.getDate() - 7);
     const dateRange = {
       start: start.toISOString().split("T")[0],
       end: end.toISOString().split("T")[0],
@@ -45,53 +43,81 @@ export async function GET(request: Request) {
         if (!isSupportedPlatform(account.platform)) continue;
 
         const client = getPlatformClient(account.platform);
-        const tokens = {
-          accessToken: decryptToken(account.access_token),
-          refreshToken: account.refresh_token ? decryptToken(account.refresh_token) : undefined,
-        };
+        const token = decryptToken(account.access_token);
+        const tokens = { accessToken: token };
 
-        // Get campaigns for this account
-        const campaigns = await client.listCampaigns(tokens, account.account_id);
+        // Fetch campaigns from platform
+        const campaigns = await client.listCampaigns(tokens, account.platform_account_id);
 
         for (const campaign of campaigns) {
           try {
-            const metrics = await client.getMetrics(tokens, campaign.id, account.account_id, dateRange);
+            // Upsert campaign_mapping (auto-discover)
+            const { data: existingMapping } = await supabase
+              .from("campaign_mappings")
+              .select("id")
+              .eq("connected_account_id", account.id)
+              .eq("platform_campaign_id", campaign.id)
+              .single();
 
-            for (const metric of metrics) {
-              // Upsert metrics into campaign_metrics
-              const { error: upsertError } = await supabase
-                .from("campaign_metrics")
-                .upsert(
-                  {
-                    campaign_id: campaign.id,
-                    platform: account.platform,
-                    account_id: account.account_id,
-                    date: metric.date,
-                    impressions: metric.impressions,
-                    clicks: metric.clicks,
-                    spend: metric.spend,
-                    conversions: metric.conversions,
-                    revenue: metric.revenue,
-                    cpc: metric.clicks > 0 ? metric.spend / metric.clicks : 0,
-                    ctr: metric.impressions > 0 ? (metric.clicks / metric.impressions) * 100 : 0,
-                    roas: metric.spend > 0 ? metric.revenue / metric.spend : 0,
-                    updated_at: new Date().toISOString(),
-                  },
-                  { onConflict: "campaign_id,date" }
-                );
+            let mappingId: string;
 
-              if (upsertError) {
-                console.error(`Error upserting metrics for ${campaign.id}:`, upsertError);
-              } else {
-                synced++;
-              }
+            if (existingMapping) {
+              mappingId = existingMapping.id;
+              await supabase.from("campaign_mappings").update({
+                campaign_name: campaign.name,
+                status: campaign.status || "unknown",
+                objective: campaign.objective || null,
+                budget_amount: campaign.budget || null,
+                last_synced_at: new Date().toISOString(),
+              }).eq("id", mappingId);
+            } else {
+              const { data: newMapping, error: mapErr } = await supabase
+                .from("campaign_mappings")
+                .insert({
+                  user_id: account.user_id || userId,
+                  connected_account_id: account.id,
+                  platform: account.platform,
+                  platform_campaign_id: campaign.id,
+                  campaign_name: campaign.name,
+                  status: campaign.status || "unknown",
+                  objective: campaign.objective || null,
+                  budget_amount: campaign.budget || null,
+                  last_synced_at: new Date().toISOString(),
+                })
+                .select("id")
+                .single();
+
+              if (mapErr || !newMapping) continue;
+              mappingId = newMapping.id;
+              campaignsDiscovered++;
             }
 
-            // Update last_synced_at on campaign_mappings
-            await supabase
-              .from("campaign_mappings")
-              .update({ last_synced_at: new Date().toISOString() })
-              .eq("platform_campaign_id", campaign.id);
+            // Fetch and store metrics
+            const metrics = await client.getMetrics(tokens, campaign.id, account.platform_account_id, dateRange);
+
+            for (const metric of metrics) {
+              const spend = Number(metric.spend) || 0;
+              const clicks = Number(metric.clicks) || 0;
+              const impressions = Number(metric.impressions) || 0;
+
+              const { error: upsertError } = await supabase
+                .from("campaign_metrics")
+                .upsert({
+                  campaign_mapping_id: mappingId,
+                  date: metric.date,
+                  impressions,
+                  clicks,
+                  spend,
+                  conversions: Number(metric.conversions) || 0,
+                  revenue: Number(metric.revenue) || 0,
+                  ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+                  cpc: clicks > 0 ? spend / clicks : 0,
+                  cpm: impressions > 0 ? (spend / impressions) * 1000 : 0,
+                  roas: spend > 0 ? Number(metric.revenue) / spend : 0,
+                }, { onConflict: "campaign_mapping_id,date" });
+
+              if (!upsertError) metricsSynced++;
+            }
           } catch (campaignErr) {
             console.error(`Error syncing campaign ${campaign.id}:`, campaignErr);
           }
@@ -105,5 +131,5 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 
-  return NextResponse.json({ synced });
+  return NextResponse.json({ campaignsDiscovered, metricsSynced });
 }

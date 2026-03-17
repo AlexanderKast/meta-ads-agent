@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   // Current period metrics
   const { data: currentMetrics } = await supabase
     .from("campaign_metrics")
-    .select("*, campaign_mappings(name, platform, status)")
+    .select("*, campaign_mappings(campaign_name, platform, status)")
     .gte("date", startDate)
     .lte("date", endDate);
 
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
   // By platform
   const platMap = new Map<string, { platform: string; spend: number; impressions: number }>();
   for (const r of rows) {
-    const mapping = r.campaign_mappings as { name: string; platform: string; status: string } | null;
+    const mapping = r.campaign_mappings as { campaign_name: string; platform: string; status: string } | null;
     const platform = mapping?.platform || "unknown";
     const existing = platMap.get(platform) || { platform, spend: 0, impressions: 0 };
     existing.spend += Number(r.spend) || 0;
@@ -66,13 +66,13 @@ export async function GET(request: NextRequest) {
   // Top campaigns by ROAS
   const campMap = new Map<string, { name: string; platform: string; spend: number; revenue: number; status: string }>();
   for (const r of rows) {
-    const mapping = r.campaign_mappings as { name: string; platform: string; status: string } | null;
-    const name = mapping?.name || "Unknown";
+    const mapping = r.campaign_mappings as { campaign_name: string; platform: string; status: string } | null;
+    const name = mapping?.campaign_name || "Unknown";
     const platform = mapping?.platform || "unknown";
     const status = mapping?.status || "active";
     const existing = campMap.get(name) || { name, platform, spend: 0, revenue: 0, status };
     existing.spend += Number(r.spend) || 0;
-    existing.revenue += Number(r.conversions_value) || 0;
+    existing.revenue += Number(r.revenue) || 0;
     campMap.set(name, existing);
   }
   const topCampaigns = Array.from(campMap.values())
@@ -120,7 +120,7 @@ function aggregate(rows: Record<string, unknown>[]) {
     impressions += Number(r.impressions) || 0;
     clicks += Number(r.clicks) || 0;
     conversions += Number(r.conversions) || 0;
-    revenue += Number(r.conversions_value) || 0;
+    revenue += Number(r.revenue) || 0;
   }
   return { spend, impressions, clicks, conversions, revenue };
 }

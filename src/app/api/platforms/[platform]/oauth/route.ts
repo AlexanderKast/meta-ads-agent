@@ -10,7 +10,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   }
 
   const client = getPlatformClient(platform);
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").trim();
   const redirectUri = `${baseUrl}/api/platforms/${platform}/callback`;
   const state = Buffer.from(JSON.stringify({ userId: getUserId() })).toString("base64url");
 

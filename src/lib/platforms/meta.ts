@@ -28,11 +28,14 @@ const OBJECTIVE_MAP: Record<string, string> = {
   conversion: "OUTCOME_SALES",
 };
 
+const appId = () => (process.env.META_APP_ID || "").trim();
+const appSecret = () => (process.env.META_APP_SECRET || "").trim();
+
 export const metaClient: PlatformClient = {
   getAuthUrl(redirectUri: string, state: string): string {
     const params = new URLSearchParams({
-      client_id: process.env.META_APP_ID || "",
-      redirect_uri: redirectUri,
+      client_id: appId(),
+      redirect_uri: redirectUri.trim(),
       state,
       scope: "ads_management,ads_read,business_management",
       response_type: "code",
@@ -42,10 +45,10 @@ export const metaClient: PlatformClient = {
 
   async exchangeCode(code: string, redirectUri: string) {
     // Exchange short-lived token
-    const tokenRes = await fbApi(`/oauth/access_token?client_id=${process.env.META_APP_ID}&client_secret=${process.env.META_APP_SECRET}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${code}`, "");
+    const tokenRes = await fbApi(`/oauth/access_token?client_id=${appId()}&client_secret=${appSecret()}&redirect_uri=${encodeURIComponent(redirectUri.trim())}&code=${code}`, "");
 
     // Exchange for long-lived token
-    const longToken = await fbApi(`/oauth/access_token?grant_type=fb_exchange_token&client_id=${process.env.META_APP_ID}&client_secret=${process.env.META_APP_SECRET}&fb_exchange_token=${tokenRes.access_token}`, "");
+    const longToken = await fbApi(`/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId()}&client_secret=${appSecret()}&fb_exchange_token=${tokenRes.access_token}`, "");
 
     // Get ad accounts
     const me = await fbApi("/me?fields=name", longToken.access_token || tokenRes.access_token);

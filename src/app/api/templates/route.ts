@@ -1,15 +1,13 @@
 import { NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getSupabase, getUserId } from "@/lib/auth-helper";
 
 export async function GET() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return Response.json({ error: "No autenticado" }, { status: 401 });
+  const supabase = getSupabase();
 
   const { data, error } = await supabase
     .from("templates")
     .select("*")
-    .eq("user_id", user.id)
+    .eq("user_id", getUserId())
     .order("created_at", { ascending: false });
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
@@ -18,14 +16,12 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return Response.json({ error: "No autenticado" }, { status: 401 });
+  const supabase = getSupabase();
 
   const body = await request.json();
 
   const { data, error } = await supabase.from("templates").insert({
-    user_id: user.id,
+    user_id: getUserId(),
     name: body.name,
     platform: body.platform,
     objective: body.objective,

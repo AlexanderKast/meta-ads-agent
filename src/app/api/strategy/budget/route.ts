@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getSupabase, getUserId } from "@/lib/auth-helper";
 import { aiCall, type ToolSchema } from "@/lib/ai-provider";
 import { buildBudgetPrompt } from "@/lib/prompts/strategy";
 
@@ -50,7 +50,7 @@ const budgetTool: ToolSchema = {
 
 export async function POST() {
   try {
-    const supabase = await createClient();
+    const supabase = getSupabase();
 
     const { data: mappings, error: mapErr } = await supabase
       .from("campaign_mappings")

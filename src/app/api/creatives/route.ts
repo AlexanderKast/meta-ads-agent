@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getSupabase, getUserId } from "@/lib/auth-helper";
 
 export async function GET(request: Request) {
   try {
-    const supabase = await createClient();
+    const supabase = getSupabase();
     const { searchParams } = new URL(request.url);
     const platform = searchParams.get("platform");
     const status = searchParams.get("status");
@@ -83,7 +83,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
+    const supabase = getSupabase();
     const body = await request.json();
 
     const { generationId, variationIndex, status } = body;

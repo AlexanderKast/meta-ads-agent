@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getSupabase, getUserId } from "@/lib/auth-helper";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const startDate = searchParams.get("startDate") || defaultStart.toISOString().split("T")[0];
   const endDate = searchParams.get("endDate") || now.toISOString().split("T")[0];
 
-  const supabase = await createClient();
+  const supabase = getSupabase();
 
   // Fetch campaign_metrics joined with campaign_mappings to get platform
   const { data: rows, error } = await supabase

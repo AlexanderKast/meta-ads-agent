@@ -1,16 +1,13 @@
-import { createClient } from "@/lib/supabase/server";
+import { getUserId } from "@/lib/auth-helper";
 import { createPortalSession, getStripe } from "@/lib/stripe";
 
 export async function POST() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    return Response.json({ error: "No autenticado" }, { status: 401 });
-  }
-
   const stripe = getStripe();
-  const customers = await stripe.customers.list({ email: user.email!, limit: 1 });
+  // Search by metadata filter isn't supported in list; use search instead
+  const customers = await stripe.customers.search({
+    query: `metadata["userId"]:"${getUserId()}"`,
+    limit: 1,
+  });
   const customerId = customers.data[0]?.id;
 
   if (!customerId) {

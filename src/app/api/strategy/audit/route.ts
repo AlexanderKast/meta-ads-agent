@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getSupabase, getUserId } from "@/lib/auth-helper";
 import { aiCall, type ToolSchema } from "@/lib/ai-provider";
 import { buildAuditPrompt } from "@/lib/prompts/strategy";
 
@@ -52,7 +52,7 @@ const auditTool: ToolSchema = {
 
 export async function POST() {
   try {
-    const supabase = await createClient();
+    const supabase = getSupabase();
 
     // Fetch campaigns with their latest metrics
     const { data: mappings, error: mapErr } = await supabase

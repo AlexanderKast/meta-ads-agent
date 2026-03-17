@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getSupabase, getUserId } from "@/lib/auth-helper";
 import { aiCall, type ToolSchema } from "@/lib/ai-provider";
 import { buildCopyTestPrompt } from "@/lib/prompts/strategy";
 
@@ -49,7 +49,7 @@ const copyTestTool: ToolSchema = {
 
 export async function POST() {
   try {
-    const supabase = await createClient();
+    const supabase = getSupabase();
 
     // Fetch metrics with generation data
     const { data: metrics, error: metErr } = await supabase

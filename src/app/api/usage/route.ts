@@ -1,10 +1,8 @@
-import { createClient } from "@/lib/supabase/server";
+import { getSupabase, getUserId } from "@/lib/auth-helper";
 import { getPlan } from "@/lib/plans";
 
 export async function GET() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return Response.json({ error: "No autenticado" }, { status: 401 });
+  const supabase = getSupabase();
 
   const now = new Date();
   const periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
@@ -12,7 +10,7 @@ export async function GET() {
   const { data } = await supabase
     .from("usage_tracking")
     .select("*")
-    .eq("user_id", user.id)
+    .eq("user_id", getUserId())
     .eq("period_start", periodStart)
     .single();
 

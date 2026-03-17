@@ -22,6 +22,14 @@ async function fbApi(path: string, token: string, method = "GET", body?: Record<
   return data;
 }
 
+/** Follow pagination - Meta returns full URLs */
+async function fbApiFullUrl(fullUrl: string): Promise<Record<string, unknown>> {
+  const res = await fetch(fullUrl);
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || "Meta API error");
+  return data;
+}
+
 const OBJECTIVE_MAP: Record<string, string> = {
   awareness: "OUTCOME_AWARENESS",
   consideration: "OUTCOME_TRAFFIC",
@@ -156,3 +164,142 @@ export const metaClient: PlatformClient = {
     };
   },
 };
+
+// ── Meta Discovery APIs ──────────────────────────────────────────
+
+export interface MetaBusinessManager {
+  id: string;
+  name: string;
+}
+
+export interface MetaAdAccount {
+  id: string;          // act_XXXXX format
+  account_id: string;  // numeric ID
+  name: string;
+  currency: string;
+  timezone_name: string;
+  account_status: number; // 1=ACTIVE, 2=DISABLED, 3=UNSETTLED, etc
+  business_manager?: MetaBusinessManager;
+}
+
+export interface MetaAdSummary {
+  id: string;
+  name: string;
+  status: string;
+  campaign_id: string;
+  campaign_name: string;
+  adset_id: string;
+  adset_name: string;
+  creative_id?: string;
+  preview_url?: string;
+  created_time: string;
+}
+
+/** Fetch all Business Managers the user has access to */
+export async function getBusinessManagers(token: string): Promise<MetaBusinessManager[]> {
+  const data = await fbApi("/me/businesses?fields=id,name&limit=100", token);
+  return (data.data || []).map((b: Record<string, unknown>) => ({
+    id: b.id as string,
+    name: b.name as string,
+  }));
+}
+
+/** Fetch all ad accounts - both personal and under BMs */
+export async function getAllAdAccounts(token: string): Promise<MetaAdAccount[]> {
+  const allAccounts: MetaAdAccount[] = [];
+  const seenIds = new Set<string>();
+
+  // 1. Personal ad accounts (directly owned by user)
+  let url: string = "/me/adaccounts?fields=id,account_id,name,currency,timezone_name,account_status&limit=100";
+  while (url) {
+    const data = url.startsWith("http") ? await fbApiFullUrl(url) : await fbApi(url, token);
+    for (const a of (data.data as Array<Record<string, unknown>>) || []) {
+      if (!seenIds.has(a.id as string)) {
+        seenIds.add(a.id as string);
+        allAccounts.push({
+          id: a.id as string,
+          account_id: a.account_id as string,
+          name: (a.name as string) || `Account ${a.account_id}`,
+          currency: (a.currency as string) || "USD",
+          timezone_name: (a.timezone_name as string) || "",
+          account_status: (a.account_status as number) ?? 1,
+        });
+      }
+    }
+    // Handle pagination
+    url = (data.paging as Record<string, unknown>)?.next as string || "";
+  }
+
+  // 2. Ad accounts under each Business Manager
+  const bms = await getBusinessManagers(token);
+  for (const bm of bms) {
+    let bmUrl: string = `/${bm.id}/owned_ad_accounts?fields=id,account_id,name,currency,timezone_name,account_status&limit=100`;
+    while (bmUrl) {
+      const data = bmUrl.startsWith("http") ? await fbApiFullUrl(bmUrl) : await fbApi(bmUrl, token);
+      for (const a of (data.data as Array<Record<string, unknown>>) || []) {
+        if (!seenIds.has(a.id as string)) {
+          seenIds.add(a.id as string);
+          allAccounts.push({
+            id: a.id as string,
+            account_id: a.account_id as string,
+            name: (a.name as string) || `Account ${a.account_id}`,
+            currency: (a.currency as string) || "USD",
+            timezone_name: (a.timezone_name as string) || "",
+            account_status: (a.account_status as number) ?? 1,
+            business_manager: bm,
+          });
+        }
+      }
+      bmUrl = (data.paging as Record<string, unknown>)?.next as string || "";
+    }
+
+    // Also check client ad accounts
+    let clientUrl: string = `/${bm.id}/client_ad_accounts?fields=id,account_id,name,currency,timezone_name,account_status&limit=100`;
+    while (clientUrl) {
+      const data = clientUrl.startsWith("http") ? await fbApiFullUrl(clientUrl) : await fbApi(clientUrl, token);
+      for (const a of (data.data as Array<Record<string, unknown>>) || []) {
+        if (!seenIds.has(a.id as string)) {
+          seenIds.add(a.id as string);
+          allAccounts.push({
+            id: a.id as string,
+            account_id: a.account_id as string,
+            name: (a.name as string) || `Account ${a.account_id}`,
+            currency: (a.currency as string) || "USD",
+            timezone_name: (a.timezone_name as string) || "",
+            account_status: (a.account_status as number) ?? 1,
+            business_manager: bm,
+          });
+        }
+      }
+      clientUrl = (data.paging as Record<string, unknown>)?.next as string || "";
+    }
+  }
+
+  return allAccounts;
+}
+
+/** Fetch all ads from an ad account with campaign/adset context */
+export async function getAdsFromAccount(token: string, accountId: string): Promise<MetaAdSummary[]> {
+  const ads: MetaAdSummary[] = [];
+  let url: string = `/${accountId}/ads?fields=id,name,status,campaign_id,campaign{name},adset_id,adset{name},creative{id,effective_object_story_id},created_time&limit=100`;
+
+  while (url) {
+    const data = url.startsWith("http") ? await fbApiFullUrl(url) : await fbApi(url, token);
+    for (const ad of (data.data as Array<Record<string, unknown>>) || []) {
+      ads.push({
+        id: ad.id as string,
+        name: (ad.name as string) || "",
+        status: ((ad.status as string) || "").toLowerCase(),
+        campaign_id: (ad.campaign_id as string) || "",
+        campaign_name: (ad.campaign as Record<string, unknown>)?.name as string || "",
+        adset_id: (ad.adset_id as string) || "",
+        adset_name: (ad.adset as Record<string, unknown>)?.name as string || "",
+        creative_id: (ad.creative as Record<string, unknown>)?.id as string | undefined,
+        created_time: (ad.created_time as string) || "",
+      });
+    }
+    url = (data.paging as Record<string, unknown>)?.next as string || "";
+  }
+
+  return ads;
+}

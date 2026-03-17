@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getSupabase, getUserId } from "@/lib/auth-helper";
 
 export async function GET() {
-  const supabase = await createClient();
+  const supabase = getSupabase();
 
   const { data: alerts, error } = await supabase
     .from("alerts")
@@ -19,7 +19,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
+  const supabase = getSupabase();
   const body = await request.json();
   const { id } = body;
 

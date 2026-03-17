@@ -1,16 +1,15 @@
 import { NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { getPlatformClient, isSupportedPlatform } from "@/lib/platforms";
 import { decryptToken } from "@/lib/platforms/token-manager";
 import { createAdSchema } from "@/lib/validators";
+import { getSupabase, getUserId } from "@/lib/auth-helper";
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ platform: string }> }) {
   const { platform } = await params;
   if (!isSupportedPlatform(platform)) return Response.json({ error: "Plataforma no soportada" }, { status: 400 });
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return Response.json({ error: "No autenticado" }, { status: 401 });
+  const supabase = getSupabase();
+  const userId = getUserId();
 
   const body = await request.json();
   const parseResult = createAdSchema.safeParse(body);
@@ -20,23 +19,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const input = parseResult.data;
 
-  // Get account
   const { data: account } = await supabase
     .from("connected_accounts")
     .select("*")
     .eq("id", input.connectedAccountId)
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .eq("is_active", true)
     .single();
 
   if (!account) return Response.json({ error: "Cuenta no encontrada" }, { status: 404 });
 
-  // Get campaign mapping
   const { data: mapping } = await supabase
     .from("campaign_mappings")
     .select("*")
     .eq("id", input.campaignMappingId)
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .single();
 
   if (!mapping) return Response.json({ error: "Campana no encontrada" }, { status: 404 });
@@ -56,7 +53,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       landingUrl: input.landingUrl,
     });
 
-    // Update mapping with ad ID
     await supabase
       .from("campaign_mappings")
       .update({ platform_ad_id: result.adId, generation_id: input.generationId, updated_at: new Date().toISOString() })

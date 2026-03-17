@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { getPlatformClient, isSupportedPlatform } from "@/lib/platforms";
 import { encryptToken } from "@/lib/platforms/token-manager";
+import { getSupabase } from "@/lib/auth-helper";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ platform: string }> }) {
   const { platform } = await params;
@@ -17,17 +17,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const stateData = JSON.parse(Buffer.from(state, "base64url").toString());
     const userId = stateData.userId;
 
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user || user.id !== userId) {
-      return NextResponse.redirect(`${baseUrl}/app/integrations?error=auth`);
-    }
-
+    const supabase = getSupabase();
     const client = getPlatformClient(platform);
     const redirectUri = `${baseUrl}/api/platforms/${platform}/callback`;
     const tokens = await client.exchangeCode(code, redirectUri);
 
-    // Encrypt tokens before storing
     const encryptedAccess = encryptToken(tokens.accessToken);
     const encryptedRefresh = tokens.refreshToken ? encryptToken(tokens.refreshToken) : null;
 

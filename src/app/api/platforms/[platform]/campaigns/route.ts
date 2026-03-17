@@ -1,23 +1,21 @@
 import { NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { getPlatformClient, isSupportedPlatform } from "@/lib/platforms";
 import { decryptToken } from "@/lib/platforms/token-manager";
 import { createCampaignSchema } from "@/lib/validators";
+import { getSupabase, getUserId } from "@/lib/auth-helper";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ platform: string }> }) {
   const { platform } = await params;
   if (!isSupportedPlatform(platform)) return Response.json({ error: "Plataforma no soportada" }, { status: 400 });
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return Response.json({ error: "No autenticado" }, { status: 401 });
-
+  const supabase = getSupabase();
+  const userId = getUserId();
   const accountId = request.nextUrl.searchParams.get("accountId");
 
   const { data: account } = await supabase
     .from("connected_accounts")
     .select("*")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .eq("platform", platform)
     .eq("is_active", true)
     .single();
@@ -38,9 +36,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { platform } = await params;
   if (!isSupportedPlatform(platform)) return Response.json({ error: "Plataforma no soportada" }, { status: 400 });
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return Response.json({ error: "No autenticado" }, { status: 401 });
+  const supabase = getSupabase();
+  const userId = getUserId();
 
   const body = await request.json();
   const parseResult = createCampaignSchema.safeParse(body);
@@ -54,7 +51,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .from("connected_accounts")
     .select("*")
     .eq("id", input.connectedAccountId)
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .eq("is_active", true)
     .single();
 
@@ -65,9 +62,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const token = decryptToken(account.access_token);
     const result = await client.createCampaign({ accessToken: token }, account.platform_account_id, input);
 
-    // Save mapping
     const { data: mapping } = await supabase.from("campaign_mappings").insert({
-      user_id: user.id,
+      user_id: userId,
       connected_account_id: account.id,
       platform,
       platform_campaign_id: result.campaignId,

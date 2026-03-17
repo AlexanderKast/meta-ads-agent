@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { getPlatformClient, isSupportedPlatform } from "@/lib/platforms";
 import { decryptToken } from "@/lib/platforms/token-manager";
+import { getSupabase, getUserId } from "@/lib/auth-helper";
 
 export async function GET(
   request: NextRequest,
@@ -10,9 +10,8 @@ export async function GET(
   const { platform, campaignId } = await params;
   if (!isSupportedPlatform(platform)) return Response.json({ error: "Plataforma no soportada" }, { status: 400 });
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return Response.json({ error: "No autenticado" }, { status: 401 });
+  const supabase = getSupabase();
+  const userId = getUserId();
 
   const startDate = request.nextUrl.searchParams.get("startDate");
   const endDate = request.nextUrl.searchParams.get("endDate");
@@ -21,12 +20,11 @@ export async function GET(
     return Response.json({ error: "startDate y endDate son requeridos" }, { status: 400 });
   }
 
-  // Get campaign mapping
   const { data: mapping } = await supabase
     .from("campaign_mappings")
     .select("*, connected_accounts(*)")
     .eq("id", campaignId)
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .single();
 
   if (!mapping) return Response.json({ error: "Campana no encontrada" }, { status: 404 });
@@ -45,7 +43,6 @@ export async function GET(
       { start: startDate, end: endDate }
     );
 
-    // Cache metrics in database
     for (const m of metrics) {
       await supabase.from("campaign_metrics").upsert({
         campaign_mapping_id: campaignId,
@@ -62,7 +59,6 @@ export async function GET(
       }, { onConflict: "campaign_mapping_id,date" });
     }
 
-    // Update last synced
     await supabase.from("campaign_mappings").update({ last_synced_at: new Date().toISOString() }).eq("id", campaignId);
 
     return Response.json(metrics);

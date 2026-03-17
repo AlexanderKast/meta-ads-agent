@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase, getUserId } from "@/lib/auth-helper";
+import { getPlatformClient, isSupportedPlatform } from "@/lib/platforms";
+import { decryptToken } from "@/lib/platforms/token-manager";
+
+export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 export async function GET(request: NextRequest) {
   const supabase = getSupabase();
+  const userId = getUserId();
   const { searchParams } = new URL(request.url);
 
   const now = new Date();
   const endDate = searchParams.get("endDate") || now.toISOString().split("T")[0];
+  const daysBack = parseInt(searchParams.get("days") || "30");
   const startDate =
     searchParams.get("startDate") ||
-    new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-
+    new Date(now.getTime() - daysBack * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
   const accountId = searchParams.get("accountId");
 
   // Calculate previous period for deltas
@@ -20,17 +26,18 @@ export async function GET(request: NextRequest) {
   const prevStartDate = new Date(startMs - periodMs).toISOString().split("T")[0];
   const prevEndDate = startDate;
 
-  // If filtering by account, get relevant mapping IDs
-  let mappingIds: string[] | null = null;
-  if (accountId) {
-    const { data: mappings } = await supabase
-      .from("campaign_mappings")
-      .select("id")
-      .eq("connected_account_id", accountId);
-    mappingIds = (mappings || []).map((m: { id: string }) => m.id);
-  }
+  // Get connected accounts
+  let query = supabase
+    .from("connected_accounts")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("is_active", true);
 
-  if (mappingIds !== null && mappingIds.length === 0) {
+  if (accountId) query = query.eq("id", accountId);
+
+  const { data: accounts } = await query;
+
+  if (!accounts || accounts.length === 0) {
     return NextResponse.json({
       kpis: {
         spend: 0, impressions: 0, clicks: 0, ctr: 0, cpc: 0, conversions: 0, roas: 0,
@@ -42,74 +49,127 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // Current period metrics
-  let currentQuery = supabase
-    .from("campaign_metrics")
-    .select("*, campaign_mappings(campaign_name, platform, status)")
-    .gte("date", startDate)
-    .lte("date", endDate);
-
-  if (mappingIds !== null) {
-    currentQuery = currentQuery.in("campaign_mapping_id", mappingIds);
+  // Fetch metrics from all connected accounts via platform APIs
+  interface MetricRow {
+    date: string;
+    impressions: number;
+    clicks: number;
+    spend: number;
+    conversions: number;
+    revenue: number;
+    campaignName: string;
+    platform: string;
   }
+  const allMetrics: MetricRow[] = [];
+  const allPrevMetrics: MetricRow[] = [];
 
-  const { data: currentMetrics } = await currentQuery;
+  for (const account of accounts) {
+    if (!isSupportedPlatform(account.platform)) continue;
+    try {
+      const client = getPlatformClient(account.platform);
+      const token = decryptToken(account.access_token);
+      const tokens = { accessToken: token };
 
-  // Previous period metrics
-  let prevQuery = supabase
-    .from("campaign_metrics")
-    .select("*")
-    .gte("date", prevStartDate)
-    .lt("date", prevEndDate);
+      // List campaigns - this already returns spend from Meta insights
+      const campaigns = await client.listCampaigns(tokens, account.platform_account_id);
 
-  if (mappingIds !== null) {
-    prevQuery = prevQuery.in("campaign_mapping_id", mappingIds);
+      // Only fetch detailed metrics for active campaigns with spend, limit to top 20
+      const activeCampaigns = campaigns
+        .filter((c) => c.status === "active" || c.status === "paused")
+        .sort((a, b) => (Number(b.spend) || 0) - (Number(a.spend) || 0))
+        .slice(0, 20);
+
+      // Fetch metrics in parallel (batches of 5 to avoid rate limits)
+      const BATCH_SIZE = 5;
+      for (let i = 0; i < activeCampaigns.length; i += BATCH_SIZE) {
+        const batch = activeCampaigns.slice(i, i + BATCH_SIZE);
+        const results = await Promise.allSettled(
+          batch.map(async (campaign) => {
+            const [metrics, prevMetrics] = await Promise.all([
+              client.getMetrics(tokens, campaign.id, account.platform_account_id, {
+                start: startDate,
+                end: endDate,
+              }),
+              client.getMetrics(tokens, campaign.id, account.platform_account_id, {
+                start: prevStartDate,
+                end: prevEndDate,
+              }),
+            ]);
+            return { campaign, metrics, prevMetrics };
+          })
+        );
+
+        for (const result of results) {
+          if (result.status !== "fulfilled") continue;
+          const { campaign, metrics, prevMetrics } = result.value;
+          for (const m of metrics) {
+            allMetrics.push({ ...m, campaignName: campaign.name, platform: account.platform });
+          }
+          for (const m of prevMetrics) {
+            allPrevMetrics.push({ ...m, campaignName: campaign.name, platform: account.platform });
+          }
+        }
+      }
+
+      // Also include campaigns we didn't fetch detailed metrics for (use listCampaigns spend)
+      const detailedIds = new Set(activeCampaigns.map((c) => c.id));
+      for (const campaign of campaigns) {
+        if (detailedIds.has(campaign.id)) continue;
+        if (Number(campaign.spend) > 0) {
+          allMetrics.push({
+            date: endDate,
+            impressions: 0,
+            clicks: 0,
+            spend: Number(campaign.spend) || 0,
+            conversions: 0,
+            revenue: 0,
+            campaignName: campaign.name,
+            platform: account.platform,
+          });
+        }
+      }
+    } catch (err) {
+      console.error(`Dashboard: error fetching ${account.platform} ${account.account_name}:`, err);
+    }
   }
-
-  const { data: prevMetrics } = await prevQuery;
-
-  const rows = currentMetrics || [];
-  const prevRows = prevMetrics || [];
 
   // Aggregate KPIs
-  const agg = aggregate(rows);
-  const prevAgg = aggregate(prevRows);
+  const agg = aggregate(allMetrics);
+  const prevAgg = aggregate(allPrevMetrics);
 
   // Daily breakdown
   const dailyMap = new Map<string, { date: string; spend: number; impressions: number; clicks: number }>();
-  for (const r of rows) {
-    const d = r.date as string;
-    const existing = dailyMap.get(d) || { date: d, spend: 0, impressions: 0, clicks: 0 };
-    existing.spend += Number(r.spend) || 0;
-    existing.impressions += Number(r.impressions) || 0;
-    existing.clicks += Number(r.clicks) || 0;
-    dailyMap.set(d, existing);
+  for (const r of allMetrics) {
+    const existing = dailyMap.get(r.date) || { date: r.date, spend: 0, impressions: 0, clicks: 0 };
+    existing.spend += r.spend;
+    existing.impressions += r.impressions;
+    existing.clicks += r.clicks;
+    dailyMap.set(r.date, existing);
   }
   const daily = Array.from(dailyMap.values()).sort((a, b) => a.date.localeCompare(b.date));
 
   // By platform
   const platMap = new Map<string, { platform: string; spend: number; impressions: number }>();
-  for (const r of rows) {
-    const mapping = r.campaign_mappings as { campaign_name: string; platform: string; status: string } | null;
-    const platform = mapping?.platform || "unknown";
-    const existing = platMap.get(platform) || { platform, spend: 0, impressions: 0 };
-    existing.spend += Number(r.spend) || 0;
-    existing.impressions += Number(r.impressions) || 0;
-    platMap.set(platform, existing);
+  for (const r of allMetrics) {
+    const existing = platMap.get(r.platform) || { platform: r.platform, spend: 0, impressions: 0 };
+    existing.spend += r.spend;
+    existing.impressions += r.impressions;
+    platMap.set(r.platform, existing);
   }
   const byPlatform = Array.from(platMap.values());
 
-  // Top campaigns by ROAS
-  const campMap = new Map<string, { name: string; platform: string; spend: number; revenue: number; status: string }>();
-  for (const r of rows) {
-    const mapping = r.campaign_mappings as { campaign_name: string; platform: string; status: string } | null;
-    const name = mapping?.campaign_name || "Unknown";
-    const platform = mapping?.platform || "unknown";
-    const status = mapping?.status || "active";
-    const existing = campMap.get(name) || { name, platform, spend: 0, revenue: 0, status };
-    existing.spend += Number(r.spend) || 0;
-    existing.revenue += Number(r.revenue) || 0;
-    campMap.set(name, existing);
+  // Top campaigns by spend
+  const campMap = new Map<string, { name: string; platform: string; spend: number; revenue: number }>();
+  for (const r of allMetrics) {
+    const existing = campMap.get(r.campaignName) || {
+      name: r.campaignName,
+      platform: r.platform,
+      spend: 0,
+      revenue: 0,
+    };
+    existing.spend += r.spend;
+    existing.revenue += r.revenue;
+    campMap.set(r.campaignName, existing);
   }
   const topCampaigns = Array.from(campMap.values())
     .map((c) => ({
@@ -117,10 +177,10 @@ export async function GET(request: NextRequest) {
       platform: c.platform,
       spend: c.spend,
       roas: c.spend > 0 ? c.revenue / c.spend : 0,
-      status: c.status,
+      status: "active",
     }))
-    .sort((a, b) => b.roas - a.roas)
-    .slice(0, 5);
+    .sort((a, b) => b.spend - a.spend)
+    .slice(0, 10);
 
   return NextResponse.json({
     kpis: {
@@ -142,21 +202,26 @@ export async function GET(request: NextRequest) {
     daily,
     byPlatform,
     topCampaigns,
+    meta: {
+      accounts: accounts.length,
+      totalCampaigns: campMap.size,
+      period: { start: startDate, end: endDate },
+    },
   });
 }
 
-function aggregate(rows: Record<string, unknown>[]) {
-  let spend = 0;
-  let impressions = 0;
-  let clicks = 0;
-  let conversions = 0;
-  let revenue = 0;
+function aggregate(rows: { spend: number; impressions: number; clicks: number; conversions: number; revenue: number }[]) {
+  let spend = 0,
+    impressions = 0,
+    clicks = 0,
+    conversions = 0,
+    revenue = 0;
   for (const r of rows) {
-    spend += Number(r.spend) || 0;
-    impressions += Number(r.impressions) || 0;
-    clicks += Number(r.clicks) || 0;
-    conversions += Number(r.conversions) || 0;
-    revenue += Number(r.revenue) || 0;
+    spend += r.spend;
+    impressions += r.impressions;
+    clicks += r.clicks;
+    conversions += r.conversions;
+    revenue += r.revenue;
   }
   return { spend, impressions, clicks, conversions, revenue };
 }

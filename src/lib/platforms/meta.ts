@@ -3,7 +3,7 @@ import type { PlatformClient, PlatformTokens, CreateCampaignInput, CreateAdInput
 const API_VERSION = "v21.0";
 const BASE = `https://graph.facebook.com/${API_VERSION}`;
 
-async function fbApi(path: string, token: string, method = "GET", body?: Record<string, unknown>) {
+export async function fbApi(path: string, token: string, method = "GET", body?: Record<string, unknown>) {
   const url = new URL(`${BASE}${path}`);
   const opts: RequestInit = {
     method,

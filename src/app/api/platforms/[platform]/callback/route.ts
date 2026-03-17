@@ -72,7 +72,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           // Skip the one we already stored above
           if (acct.id === (tokens.accountId || "default")) continue;
 
-          await supabase.from("connected_accounts").upsert({
+          const { error: acctError } = await supabase.from("connected_accounts").upsert({
             user_id: userId,
             platform: "meta",
             platform_account_id: acct.id,
@@ -90,12 +90,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             },
             updated_at: new Date().toISOString(),
           }, { onConflict: "user_id,platform,platform_account_id" });
+          if (acctError) console.error("[OAuth] Ad account upsert error:", acctError);
         }
 
         // Also update the first account's metadata
         const firstAcctDetails = allAccounts.find(a => a.id === (tokens.accountId || "default"));
         if (firstAcctDetails) {
-          await supabase.from("connected_accounts")
+          const { error: metaUpdateError } = await supabase.from("connected_accounts")
             .update({
               metadata: {
                 account_id: firstAcctDetails.account_id,
@@ -109,6 +110,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             .eq("user_id", userId)
             .eq("platform", "meta")
             .eq("platform_account_id", tokens.accountId || "default");
+          if (metaUpdateError) console.error("[OAuth] Metadata update error:", metaUpdateError);
         }
       } catch (metaErr) {
         console.error("[OAuth] Meta discovery error (non-fatal):", metaErr);

@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase, getUserId } from "@/lib/auth-helper";
+import { getPlatformClient, isSupportedPlatform } from "@/lib/platforms";
+import { decryptToken } from "@/lib/platforms/token-manager";
+
+export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
+  const supabase = getSupabase();
+  const userId = getUserId();
 
   const now = new Date();
   const defaultStart = new Date(now);
@@ -10,110 +17,87 @@ export async function GET(req: NextRequest) {
 
   const startDate = searchParams.get("startDate") || defaultStart.toISOString().split("T")[0];
   const endDate = searchParams.get("endDate") || now.toISOString().split("T")[0];
-
-  const supabase = getSupabase();
   const accountId = searchParams.get("accountId");
 
-  // If filtering by account, get relevant mapping IDs
-  let mappingIds: string[] | null = null;
-  if (accountId) {
-    const { data: mappings } = await supabase
-      .from("campaign_mappings")
-      .select("id")
-      .eq("connected_account_id", accountId);
-    mappingIds = (mappings || []).map((m: { id: string }) => m.id);
-    if (!mappingIds.length) {
-      return NextResponse.json({
-        byPlatform: [],
-        daily: [],
-        totals: {
-          spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0,
-          ctr: 0, cpc: 0, cpm: 0, roas: 0,
-        },
-      });
+  // Get connected accounts
+  let query = supabase
+    .from("connected_accounts")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("is_active", true);
+
+  if (accountId) query = query.eq("id", accountId);
+
+  const { data: accounts } = await query;
+
+  const emptyResponse = {
+    byPlatform: [],
+    daily: [],
+    totals: { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0, ctr: 0, cpc: 0, cpm: 0, roas: 0 },
+  };
+
+  if (!accounts || accounts.length === 0) {
+    return NextResponse.json(emptyResponse);
+  }
+
+  // Fetch campaign data from each platform
+  interface MetricRow { date: string; spend: number; impressions: number; clicks: number; conversions: number; revenue: number; platform: string; }
+  const allMetrics: MetricRow[] = [];
+
+  for (const account of accounts) {
+    if (!isSupportedPlatform(account.platform)) continue;
+    try {
+      const client = getPlatformClient(account.platform);
+      const token = decryptToken(account.access_token);
+      const tokens = { accessToken: token };
+
+      // Get campaigns with spend data
+      const campaigns = await client.listCampaigns(tokens, account.platform_account_id);
+
+      // Fetch daily metrics for campaigns that have spend (limit to top 20 by spend)
+      const activeCampaigns = campaigns
+        .filter(c => Number(c.spend) > 0 || c.status === "active")
+        .sort((a, b) => (Number(b.spend) || 0) - (Number(a.spend) || 0))
+        .slice(0, 20);
+
+      const results = await Promise.allSettled(
+        activeCampaigns.map(campaign =>
+          client.getMetrics(tokens, campaign.id, account.platform_account_id, { start: startDate, end: endDate })
+        )
+      );
+
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          for (const m of result.value) {
+            allMetrics.push({ ...m, platform: account.platform });
+          }
+        }
+      }
+    } catch (err) {
+      console.error(`Analytics: error fetching ${account.platform}:`, err);
     }
   }
 
-  // Fetch campaign_metrics joined with campaign_mappings to get platform
-  let query = supabase
-    .from("campaign_metrics")
-    .select(`
-      date,
-      spend,
-      impressions,
-      clicks,
-      conversions,
-      revenue,
-      campaign_mappings!inner (
-        platform
-      )
-    `)
-    .gte("date", startDate)
-    .lte("date", endDate)
-    .order("date", { ascending: true });
-
-  if (mappingIds) {
-    query = query.in("campaign_mapping_id", mappingIds);
-  }
-
-  const { data: rows, error } = await query;
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  if (!rows || rows.length === 0) {
-    return NextResponse.json({
-      byPlatform: [],
-      daily: [],
-      totals: {
-        spend: 0,
-        impressions: 0,
-        clicks: 0,
-        conversions: 0,
-        revenue: 0,
-        ctr: 0,
-        cpc: 0,
-        cpm: 0,
-        roas: 0,
-      },
-    });
+  if (allMetrics.length === 0) {
+    return NextResponse.json(emptyResponse);
   }
 
   // Aggregate by platform
-  const platformAgg: Record<
-    string,
-    { spend: number; impressions: number; clicks: number; conversions: number; revenue: number }
-  > = {};
-
-  // Daily breakdown
+  const platformAgg: Record<string, { spend: number; impressions: number; clicks: number; conversions: number; revenue: number }> = {};
   const dailyMap: Record<string, Record<string, { spend: number; impressions: number; clicks: number; conversions: number; revenue: number }>> = {};
 
-  for (const row of rows) {
-    const mapping = row.campaign_mappings as unknown as { platform: string };
-    const platform = mapping.platform;
-    const spend = Number(row.spend) || 0;
-    const impressions = Number(row.impressions) || 0;
-    const clicks = Number(row.clicks) || 0;
-    const conversions = Number(row.conversions) || 0;
-    const revenue = Number(row.revenue) || 0;
+  for (const row of allMetrics) {
+    const { platform, date, spend, impressions, clicks, conversions, revenue } = row;
 
-    // Platform aggregation
-    if (!platformAgg[platform]) {
-      platformAgg[platform] = { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0 };
-    }
+    if (!platformAgg[platform]) platformAgg[platform] = { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0 };
     platformAgg[platform].spend += spend;
     platformAgg[platform].impressions += impressions;
     platformAgg[platform].clicks += clicks;
     platformAgg[platform].conversions += conversions;
     platformAgg[platform].revenue += revenue;
 
-    // Daily aggregation
-    const date = row.date as string;
     if (!dailyMap[date]) dailyMap[date] = {};
-    if (!dailyMap[date][platform]) {
-      dailyMap[date][platform] = { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0 };
-    }
+    if (!dailyMap[date][platform]) dailyMap[date][platform] = { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0 };
     dailyMap[date][platform].spend += spend;
     dailyMap[date][platform].impressions += impressions;
     dailyMap[date][platform].clicks += clicks;
@@ -123,16 +107,10 @@ export async function GET(req: NextRequest) {
 
   const allPlatforms = Object.keys(platformAgg);
 
-  // Build byPlatform with derived metrics
-  const byPlatform = allPlatforms.map((platform) => {
+  const byPlatform = allPlatforms.map(platform => {
     const p = platformAgg[platform];
     return {
-      platform,
-      spend: p.spend,
-      impressions: p.impressions,
-      clicks: p.clicks,
-      conversions: p.conversions,
-      revenue: p.revenue,
+      platform, spend: p.spend, impressions: p.impressions, clicks: p.clicks, conversions: p.conversions, revenue: p.revenue,
       ctr: p.impressions > 0 ? (p.clicks / p.impressions) * 100 : 0,
       cpc: p.clicks > 0 ? p.spend / p.clicks : 0,
       cpm: p.impressions > 0 ? (p.spend / p.impressions) * 1000 : 0,
@@ -140,9 +118,8 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  // Build daily array with platform-prefixed keys
   const sortedDates = Object.keys(dailyMap).sort();
-  const daily = sortedDates.map((date) => {
+  const daily = sortedDates.map(date => {
     const entry: Record<string, string | number> = { date };
     for (const platform of allPlatforms) {
       const d = dailyMap[date]?.[platform] || { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0 };
@@ -156,24 +133,21 @@ export async function GET(req: NextRequest) {
     return entry;
   });
 
-  // Totals
   const totalSpend = byPlatform.reduce((s, p) => s + p.spend, 0);
   const totalImpressions = byPlatform.reduce((s, p) => s + p.impressions, 0);
   const totalClicks = byPlatform.reduce((s, p) => s + p.clicks, 0);
   const totalConversions = byPlatform.reduce((s, p) => s + p.conversions, 0);
   const totalRevenue = byPlatform.reduce((s, p) => s + p.revenue, 0);
 
-  const totals = {
-    spend: totalSpend,
-    impressions: totalImpressions,
-    clicks: totalClicks,
-    conversions: totalConversions,
-    revenue: totalRevenue,
-    ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
-    cpc: totalClicks > 0 ? totalSpend / totalClicks : 0,
-    cpm: totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : 0,
-    roas: totalSpend > 0 ? totalRevenue / totalSpend : 0,
-  };
-
-  return NextResponse.json({ byPlatform, daily, totals });
+  return NextResponse.json({
+    byPlatform,
+    daily,
+    totals: {
+      spend: totalSpend, impressions: totalImpressions, clicks: totalClicks, conversions: totalConversions, revenue: totalRevenue,
+      ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
+      cpc: totalClicks > 0 ? totalSpend / totalClicks : 0,
+      cpm: totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : 0,
+      roas: totalSpend > 0 ? totalRevenue / totalSpend : 0,
+    },
+  });
 }

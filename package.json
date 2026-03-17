@@ -15,6 +15,8 @@
     "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.99.2",
     "clsx": "^2.1.1",
+    "facebook-nodejs-business-sdk": "^24.0.1",
+    "google-ads-api": "^23.0.0",
     "next": "16.1.7",
     "posthog-js": "^1.360.2",
     "react": "19.2.3",

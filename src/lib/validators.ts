@@ -66,3 +66,39 @@ export const scoreSchema = z.object({
   platform: z.enum(["meta", "tiktok", "google", "youtube", "linkedin", "pinterest", "twitter", "microsoft"]),
   objective: z.enum(["awareness", "consideration", "conversion"]),
 });
+
+// --- Platform integration schemas ---
+
+const adPlatformEnum = z.enum(["meta", "google", "tiktok", "linkedin"]);
+
+export const createCampaignSchema = z.object({
+  connectedAccountId: z.string().uuid(),
+  name: z.string().min(1).max(200),
+  objective: z.enum(["awareness", "consideration", "conversion"]),
+  budget: z.object({
+    amount: z.number().positive(),
+    currency: z.string().length(3).default("USD"),
+    type: z.enum(["daily", "lifetime"]),
+  }),
+  startDate: z.string(),
+  endDate: z.string().optional(),
+});
+
+export const createAdSchema = z.object({
+  connectedAccountId: z.string().uuid(),
+  campaignMappingId: z.string().uuid(),
+  headline: z.string().min(1).max(150),
+  primaryText: z.string().min(1).max(5000),
+  description: z.string().max(500).optional(),
+  cta: z.string().min(1),
+  imageUrl: z.string().url().optional(),
+  landingUrl: z.string().url(),
+  generationId: z.string().uuid().optional(),
+});
+
+export const metricsQuerySchema = z.object({
+  startDate: z.string(),
+  endDate: z.string(),
+});
+
+export { adPlatformEnum };

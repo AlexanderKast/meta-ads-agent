@@ -17,6 +17,7 @@ interface SchemaProperty {
   items?: SchemaProperty;
   properties?: Record<string, SchemaProperty>;
   required?: string[];
+  enum?: string[];
 }
 
 type Provider = "gemini" | "anthropic";
@@ -60,10 +61,11 @@ function convertSchemaToGemini(prop: SchemaProperty): any {
     );
   }
   if (prop.required) result.required = prop.required;
+  if (prop.enum) result.enum = prop.enum;
   return result;
 }
 
-async function callGemini(prompt: string, tool: ToolSchema): Promise<Record<string, unknown>> {
+async function callGemini(prompt: string, tool: ToolSchema, options?: GeminiOptions): Promise<Record<string, unknown>> {
   const client = getGeminiClient();
 
   const geminiTool = {
@@ -78,13 +80,30 @@ async function callGemini(prompt: string, tool: ToolSchema): Promise<Record<stri
     }],
   };
 
+  // Use gemini-2.5-flash for the best quality/cost ratio
+  // Features: thinking, grounding, structured output, 1M context
+  const model = options?.model || "gemini-2.5-flash";
+
   const response = await client.models.generateContent({
-    model: "gemini-2.5-flash",
+    model,
     contents: [{ role: "user", parts: [{ text: prompt }] }],
     config: {
       systemInstruction: SYSTEM_PROMPT,
       tools: [geminiTool],
-      toolConfig: { functionCallingConfig: { mode: FunctionCallingConfigMode.ANY, allowedFunctionNames: [tool.name] } },
+      toolConfig: {
+        functionCallingConfig: {
+          mode: FunctionCallingConfigMode.ANY,
+          allowedFunctionNames: [tool.name],
+        },
+      },
+      // Enable thinking for better reasoning on complex prompts
+      thinkingConfig: options?.thinking ? { thinkingBudget: options.thinking } : undefined,
+      // Temperature for creativity (ads need creativity)
+      temperature: options?.temperature ?? 1.0,
+      // Top-p for diversity
+      topP: options?.topP ?? 0.95,
+      // Max output tokens
+      maxOutputTokens: options?.maxTokens ?? 8192,
     },
   });
 
@@ -165,13 +184,39 @@ async function callAnthropic(prompt: string, tool: ToolSchema, maxTokens = 4096)
 
 // ---------- Public API ----------
 
-export async function aiCall(prompt: string, tool: ToolSchema, maxTokens = 4096): Promise<Record<string, unknown>> {
+interface GeminiOptions {
+  model?: string;
+  thinking?: number;
+  temperature?: number;
+  topP?: number;
+  maxTokens?: number;
+}
+
+export interface AiCallOptions {
+  maxTokens?: number;
+  /** Enable Gemini thinking mode with token budget (e.g. 1024) */
+  thinking?: number;
+  /** Temperature 0-2 (default 1.0 for creative ads) */
+  temperature?: number;
+}
+
+export async function aiCall(prompt: string, tool: ToolSchema, optionsOrMaxTokens?: number | AiCallOptions): Promise<Record<string, unknown>> {
   const provider = getProvider();
 
+  // Normalize options
+  const opts: AiCallOptions = typeof optionsOrMaxTokens === "number"
+    ? { maxTokens: optionsOrMaxTokens }
+    : optionsOrMaxTokens || {};
+
   if (provider === "gemini") {
-    return callGemini(prompt, tool);
+    return callGemini(prompt, tool, {
+      maxTokens: opts.maxTokens ?? 8192,
+      thinking: opts.thinking,
+      temperature: opts.temperature ?? 1.0,
+      topP: 0.95,
+    });
   }
-  return callAnthropic(prompt, tool, maxTokens);
+  return callAnthropic(prompt, tool, opts.maxTokens ?? 4096);
 }
 
 export function getProviderName(): string {

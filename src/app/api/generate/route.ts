@@ -30,7 +30,11 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        const result = await aiCall(buildPrompt(body), tool);
+        const result = await aiCall(buildPrompt(body), tool, {
+          maxTokens: 8192,
+          thinking: 1024,
+          temperature: 1.0,
+        });
 
         const variations = result.variations as Array<Record<string, unknown>>;
         const tips = result.tips as string[];

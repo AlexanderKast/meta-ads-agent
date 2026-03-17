@@ -19,7 +19,8 @@ export async function POST(request: NextRequest) {
   try {
     const result = await aiCall(
       buildAnalyzePrompt(adText, platform) + `\nGenera ${variations} variaciones mejoradas.`,
-      analyzeAdTool
+      analyzeAdTool,
+      { maxTokens: 8192, thinking: 1024, temperature: 0.9 }
     );
     return Response.json(result);
   } catch (err) {

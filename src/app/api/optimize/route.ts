@@ -29,7 +29,8 @@ ${metrics}
 Identifica por que no performa, que problemas tiene, da recomendaciones concretas y genera 3 variaciones optimizadas.
 
 Usa la herramienta optimize_ad para responder.`,
-      optimizeAdTool
+      optimizeAdTool,
+      { maxTokens: 8192, thinking: 2048, temperature: 0.8 }
     );
     return Response.json(result);
   } catch (err) {

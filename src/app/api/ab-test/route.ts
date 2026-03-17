@@ -19,7 +19,8 @@ export async function POST(request: NextRequest) {
   try {
     const result = await aiCall(
       buildABTestPrompt(variations, platform, objective, budget),
-      abTestTool
+      abTestTool,
+      { maxTokens: 8192, thinking: 2048, temperature: 0.7 }
     );
     return Response.json(result);
   } catch (err) {

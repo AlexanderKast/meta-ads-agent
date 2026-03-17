@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { PlatformComparison, type PlatformMetric } from "@/components/analytics/platform-comparison";
 import { KpiTable, type AnalyticsMetrics } from "@/components/analytics/kpi-table";
 import { TrendChart, type DailyPlatformData } from "@/components/analytics/trend-chart";
+import { useAccount } from "@/contexts/account-context";
 
 const PLATFORM_ICONS: Record<string, string> = {
   meta: "\uD83D\uDCD8",
@@ -39,6 +40,7 @@ export default function AnalyticsPage() {
   const [rangeDays, setRangeDays] = useState(30);
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const { selectedAccountId } = useAccount();
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -49,9 +51,10 @@ export default function AnalyticsPage() {
       const startDate = start.toISOString().split("T")[0];
       const endDate = end.toISOString().split("T")[0];
 
-      const res = await fetch(
-        `/api/analytics/cross-platform?startDate=${startDate}&endDate=${endDate}`
-      );
+      const params = new URLSearchParams({ startDate, endDate });
+      if (selectedAccountId) params.set("accountId", selectedAccountId);
+
+      const res = await fetch(`/api/analytics/cross-platform?${params}`);
       const json = await res.json();
       setData(json);
     } catch {
@@ -59,7 +62,7 @@ export default function AnalyticsPage() {
     } finally {
       setLoading(false);
     }
-  }, [rangeDays]);
+  }, [rangeDays, selectedAccountId]);
 
   useEffect(() => {
     fetchData();

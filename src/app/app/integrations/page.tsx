@@ -164,14 +164,14 @@ function IntegrationsContent() {
     return accounts.find((a) => a.platform === platformId && a.is_active);
   }
 
-  async function handleDisconnect(accountId: string) {
+  async function handleDisconnect(platformId: string) {
     await fetch("/api/platforms/accounts", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ accountId }),
+      body: JSON.stringify({ platform: platformId }),
     });
-    setAccounts((prev) => prev.filter((a) => a.id !== accountId));
-    toast("Cuenta desconectada", "info");
+    setAccounts((prev) => prev.filter((a) => a.platform !== platformId));
+    toast("Plataforma desconectada", "info");
   }
 
   function handleConnect(platformId: string) {
@@ -280,7 +280,7 @@ function IntegrationsContent() {
                       Conectado: {new Date(account.created_at).toLocaleDateString()}
                     </p>
                     <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => handleDisconnect(account.id)}>
+                      <Button variant="ghost" size="sm" onClick={() => handleDisconnect(p.id)}>
                         Desconectar
                       </Button>
                       <Button variant="secondary" size="sm" onClick={() => handleSync(p.id)} disabled={syncing}>

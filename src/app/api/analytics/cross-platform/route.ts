@@ -12,9 +12,30 @@ export async function GET(req: NextRequest) {
   const endDate = searchParams.get("endDate") || now.toISOString().split("T")[0];
 
   const supabase = getSupabase();
+  const accountId = searchParams.get("accountId");
+
+  // If filtering by account, get relevant mapping IDs
+  let mappingIds: string[] | null = null;
+  if (accountId) {
+    const { data: mappings } = await supabase
+      .from("campaign_mappings")
+      .select("id")
+      .eq("connected_account_id", accountId);
+    mappingIds = (mappings || []).map((m: { id: string }) => m.id);
+    if (!mappingIds.length) {
+      return NextResponse.json({
+        byPlatform: [],
+        daily: [],
+        totals: {
+          spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0,
+          ctr: 0, cpc: 0, cpm: 0, roas: 0,
+        },
+      });
+    }
+  }
 
   // Fetch campaign_metrics joined with campaign_mappings to get platform
-  const { data: rows, error } = await supabase
+  let query = supabase
     .from("campaign_metrics")
     .select(`
       date,
@@ -30,6 +51,12 @@ export async function GET(req: NextRequest) {
     .gte("date", startDate)
     .lte("date", endDate)
     .order("date", { ascending: true });
+
+  if (mappingIds) {
+    query = query.in("campaign_mapping_id", mappingIds);
+  }
+
+  const { data: rows, error } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

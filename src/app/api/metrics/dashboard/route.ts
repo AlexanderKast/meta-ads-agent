@@ -11,6 +11,8 @@ export async function GET(request: NextRequest) {
     searchParams.get("startDate") ||
     new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
+  const accountId = searchParams.get("accountId");
+
   // Calculate previous period for deltas
   const startMs = new Date(startDate).getTime();
   const endMs = new Date(endDate).getTime();
@@ -18,19 +20,53 @@ export async function GET(request: NextRequest) {
   const prevStartDate = new Date(startMs - periodMs).toISOString().split("T")[0];
   const prevEndDate = startDate;
 
+  // If filtering by account, get relevant mapping IDs
+  let mappingIds: string[] | null = null;
+  if (accountId) {
+    const { data: mappings } = await supabase
+      .from("campaign_mappings")
+      .select("id")
+      .eq("connected_account_id", accountId);
+    mappingIds = (mappings || []).map((m: { id: string }) => m.id);
+  }
+
+  if (mappingIds !== null && mappingIds.length === 0) {
+    return NextResponse.json({
+      kpis: {
+        spend: 0, impressions: 0, clicks: 0, ctr: 0, cpc: 0, conversions: 0, roas: 0,
+        prevSpend: 0, prevImpressions: 0, prevClicks: 0, prevCtr: 0, prevCpc: 0, prevConversions: 0, prevRoas: 0,
+      },
+      daily: [],
+      byPlatform: [],
+      topCampaigns: [],
+    });
+  }
+
   // Current period metrics
-  const { data: currentMetrics } = await supabase
+  let currentQuery = supabase
     .from("campaign_metrics")
     .select("*, campaign_mappings(campaign_name, platform, status)")
     .gte("date", startDate)
     .lte("date", endDate);
 
+  if (mappingIds !== null) {
+    currentQuery = currentQuery.in("campaign_mapping_id", mappingIds);
+  }
+
+  const { data: currentMetrics } = await currentQuery;
+
   // Previous period metrics
-  const { data: prevMetrics } = await supabase
+  let prevQuery = supabase
     .from("campaign_metrics")
     .select("*")
     .gte("date", prevStartDate)
     .lt("date", prevEndDate);
+
+  if (mappingIds !== null) {
+    prevQuery = prevQuery.in("campaign_mapping_id", mappingIds);
+  }
+
+  const { data: prevMetrics } = await prevQuery;
 
   const rows = currentMetrics || [];
   const prevRows = prevMetrics || [];

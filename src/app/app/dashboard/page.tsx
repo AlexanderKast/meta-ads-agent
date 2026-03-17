@@ -6,6 +6,7 @@ import { LineChartComponent } from "@/components/charts/line-chart";
 import { PieChartComponent } from "@/components/charts/pie-chart";
 import { TopCampaigns } from "@/components/dashboard/top-campaigns";
 import { AlertsWidget } from "@/components/dashboard/alerts-widget";
+import { useAccount } from "@/contexts/account-context";
 import { cn } from "@/lib/utils";
 
 interface KPIData {
@@ -53,14 +54,18 @@ function SkeletonBlock({ className }: { className?: string }) {
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const { selectedAccountId } = useAccount();
 
   useEffect(() => {
-    fetch("/api/metrics/dashboard")
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (selectedAccountId) params.set("accountId", selectedAccountId);
+    fetch(`/api/metrics/dashboard?${params}`)
       .then((r) => r.json())
       .then((d) => setData(d))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedAccountId]);
 
   return (
     <div className="max-w-7xl space-y-6">

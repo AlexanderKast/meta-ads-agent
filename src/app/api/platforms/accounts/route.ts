@@ -20,16 +20,33 @@ export async function GET() {
 export async function DELETE(request: NextRequest) {
   const supabase = getSupabase();
   const userId = getUserId();
+  const body = await request.json();
 
-  const { accountId } = await request.json();
+  // Support both: disconnect single account or all accounts for a platform
+  const { accountId, platform } = body;
 
-  const { error } = await supabase
-    .from("connected_accounts")
-    .update({ is_active: false, updated_at: new Date().toISOString() })
-    .eq("id", accountId)
-    .eq("user_id", userId);
+  if (platform) {
+    // Disconnect all accounts for this platform
+    const { error } = await supabase
+      .from("connected_accounts")
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq("user_id", userId)
+      .eq("platform", platform);
 
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+    if (error) return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ ok: true, disconnected: "all", platform });
+  }
 
-  return Response.json({ ok: true });
+  if (accountId) {
+    const { error } = await supabase
+      .from("connected_accounts")
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq("id", accountId)
+      .eq("user_id", userId);
+
+    if (error) return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ ok: true });
+  }
+
+  return Response.json({ error: "accountId or platform required" }, { status: 400 });
 }

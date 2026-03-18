@@ -133,13 +133,21 @@ export const linkedinClient: PlatformClient = {
 
     return (data.elements || []).map((d: Record<string, unknown>) => {
       const dr = d.dateRange as Record<string, Record<string, number>>;
+      const impressions = Number(d.impressions || 0);
+      const clicks = Number(d.clicks || 0);
+      const spend = Number(d.costInLocalCurrency || 0);
+      const conversions = Number(d.externalWebsiteConversions || 0);
       return {
         date: `${dr?.start?.year}-${String(dr?.start?.month).padStart(2, "0")}-${String(dr?.start?.day).padStart(2, "0")}`,
-        impressions: Number(d.impressions || 0),
-        clicks: Number(d.clicks || 0),
-        spend: Number(d.costInLocalCurrency || 0),
-        conversions: Number(d.externalWebsiteConversions || 0),
-        revenue: 0,
+        impressions, reach: 0, clicks, uniqueClicks: 0, spend,
+        cpc: clicks > 0 ? spend / clicks : 0,
+        ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+        uniqueCtr: 0, cpm: impressions > 0 ? (spend / impressions) * 1000 : 0,
+        frequency: 0, conversions, revenue: 0,
+        costPerConversion: conversions > 0 ? spend / conversions : 0,
+        linkClicks: 0, linkCtr: 0, costPerLinkClick: 0,
+        socialImpressions: 0, socialClicks: 0, videoViews: 0,
+        engagementRateRanking: "", qualityRanking: "", conversionRateRanking: "",
       };
     });
   },

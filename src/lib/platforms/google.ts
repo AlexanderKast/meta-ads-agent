@@ -179,14 +179,25 @@ export const googleClient: PlatformClient = {
     );
 
     const results = data[0]?.results || [];
-    return results.map((r: Record<string, Record<string, unknown>>) => ({
-      date: r.segments?.date as string,
-      impressions: Number(r.metrics?.impressions || 0),
-      clicks: Number(r.metrics?.clicks || 0),
-      spend: Number(r.metrics?.costMicros || 0) / 1_000_000,
-      conversions: Number(r.metrics?.conversions || 0),
-      revenue: Number(r.metrics?.conversionsValue || 0),
-    }));
+    return results.map((r: Record<string, Record<string, unknown>>) => {
+      const impressions = Number(r.metrics?.impressions || 0);
+      const clicks = Number(r.metrics?.clicks || 0);
+      const spend = Number(r.metrics?.costMicros || 0) / 1_000_000;
+      const conversions = Number(r.metrics?.conversions || 0);
+      const revenue = Number(r.metrics?.conversionsValue || 0);
+      return {
+        date: r.segments?.date as string,
+        impressions, reach: 0, clicks, uniqueClicks: 0, spend,
+        cpc: clicks > 0 ? spend / clicks : 0,
+        ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+        uniqueCtr: 0, cpm: impressions > 0 ? (spend / impressions) * 1000 : 0,
+        frequency: 0, conversions, revenue,
+        costPerConversion: conversions > 0 ? spend / conversions : 0,
+        linkClicks: 0, linkCtr: 0, costPerLinkClick: 0,
+        socialImpressions: 0, socialClicks: 0, videoViews: 0,
+        engagementRateRanking: "", qualityRanking: "", conversionRateRanking: "",
+      };
+    });
   },
 
   async refreshToken(refreshToken: string) {

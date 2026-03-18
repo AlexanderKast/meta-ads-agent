@@ -138,21 +138,11 @@ export const metaClient: PlatformClient = {
   },
 
   async getMetrics(tokens: PlatformTokens, campaignId: string, _accountId: string, dateRange: { start: string; end: string }): Promise<CampaignMetrics[]> {
-    const data = await fbApi(`/${campaignId}/insights?fields=impressions,clicks,spend,actions,action_values&time_range={"since":"${dateRange.start}","until":"${dateRange.end}"}&time_increment=1`, tokens.accessToken);
-    return (data.data || []).map((d: Record<string, unknown>) => {
-      const actions = d.actions as Array<{ action_type: string; value: string }> || [];
-      const actionValues = d.action_values as Array<{ action_type: string; value: string }> || [];
-      const conversions = actions.find((a) => a.action_type === "offsite_conversion")?.value || "0";
-      const revenue = actionValues.find((a) => a.action_type === "offsite_conversion")?.value || "0";
-      return {
-        date: d.date_start as string,
-        impressions: Number(d.impressions) || 0,
-        clicks: Number(d.clicks) || 0,
-        spend: Number(d.spend) || 0,
-        conversions: Number(conversions),
-        revenue: Number(revenue),
-      };
-    });
+    const data = await fbApi(
+      `/${campaignId}/insights?fields=${INSIGHT_FIELDS}&time_range={"since":"${dateRange.start}","until":"${dateRange.end}"}&time_increment=1`,
+      tokens.accessToken
+    );
+    return (data.data || []).map((d: Record<string, unknown>) => parseInsightRow(d));
   },
 
   async refreshToken(refreshToken: string) {

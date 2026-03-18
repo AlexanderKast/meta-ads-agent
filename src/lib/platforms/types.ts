@@ -37,10 +37,27 @@ export interface CampaignSummary {
 export interface CampaignMetrics {
   date: string;
   impressions: number;
+  reach: number;
   clicks: number;
+  uniqueClicks: number;
   spend: number;
+  cpc: number;
+  ctr: number;
+  uniqueCtr: number;
+  cpm: number;
+  frequency: number;
   conversions: number;
   revenue: number;
+  costPerConversion: number;
+  linkClicks: number;
+  linkCtr: number;
+  costPerLinkClick: number;
+  socialImpressions: number;
+  socialClicks: number;
+  videoViews: number;
+  engagementRateRanking: string;
+  qualityRanking: string;
+  conversionRateRanking: string;
 }
 
 export interface PlatformClient {

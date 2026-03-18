@@ -142,10 +142,42 @@ function IntegrationsContent() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
+    const saveData = searchParams.get("save");
     const success = searchParams.get("success");
     const error = searchParams.get("error");
-    if (success) toast(`${success} conectado exitosamente`, "success");
-    if (error) toast(`Error al conectar: ${error}`, "error");
+
+    if (saveData) {
+      // Save the account from OAuth callback
+      try {
+        const data = JSON.parse(Buffer.from(saveData, "base64url").toString());
+        fetch("/api/platforms/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        })
+          .then((r) => r.json())
+          .then((result) => {
+            if (result.success) {
+              toast(`${data.platform} conectado exitosamente`, "success");
+              // Reload accounts
+              fetch("/api/platforms/accounts")
+                .then((r) => r.json())
+                .then((d) => setAccounts(Array.isArray(d) ? d : []));
+            } else {
+              toast(`Error al guardar: ${result.error}`, "error");
+            }
+          })
+          .catch(() => toast("Error al guardar cuenta", "error"));
+      } catch {
+        toast("Error al procesar datos", "error");
+      }
+      // Clean URL
+      window.history.replaceState({}, "", "/app/integrations");
+    } else if (success) {
+      toast(`${success} conectado exitosamente`, "success");
+    } else if (error) {
+      toast(`Error al conectar: ${error}`, "error");
+    }
   }, [searchParams]);
 
   useEffect(() => {

@@ -52,7 +52,10 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
 
   const now = new Date();
-  const daysBack = parseInt(searchParams.get("days") || "30");
+  // Support both "days=30" and "period=30d" formats
+  const periodParam = searchParams.get("period") || "";
+  const daysFromPeriod = periodParam.endsWith("d") ? parseInt(periodParam) : 0;
+  const daysBack = daysFromPeriod || parseInt(searchParams.get("days") || "30");
   const endDate = searchParams.get("endDate") || now.toISOString().split("T")[0];
   const startDate = searchParams.get("startDate") || new Date(now.getTime() - daysBack * 86400000).toISOString().split("T")[0];
   const accountId = searchParams.get("accountId");
@@ -70,6 +73,8 @@ export async function GET(request: NextRequest) {
   if (!accounts || accounts.length === 0) {
     return NextResponse.json({ kpis: emptyKpis, daily: [], byPlatform: [], topCampaigns: [], sparklines: {} });
   }
+
+  const errors: Array<{ account: string; error: string }> = [];
 
   // Aggregate data across all matched accounts
   type DailyRow = {
@@ -186,7 +191,9 @@ export async function GET(request: NextRequest) {
       platformSpend[platform].spend += accountSpend;
       platformSpend[platform].impressions += accountImpressions;
     } catch (err) {
-      console.error(`Dashboard error for account ${account.id}:`, err);
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[Dashboard] ERROR for account ${account.account_name} (${account.platform_account_id}):`, msg);
+      errors.push({ account: `${account.account_name} (${account.platform_account_id})`, error: msg });
       // Continue with other accounts
     }
   }

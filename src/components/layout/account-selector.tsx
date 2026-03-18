@@ -46,11 +46,23 @@ export function AccountSelector() {
     );
   }
 
+  // Detect duplicate names to show account ID suffix
+  const nameCounts = new Map<string, number>();
+  accounts.forEach((a) => nameCounts.set(a.account_name, (nameCounts.get(a.account_name) || 0) + 1));
+
   const filteredAccounts = accounts.filter((account) =>
     account.account_name.toLowerCase().includes(search.toLowerCase()) ||
     account.platform.toLowerCase().includes(search.toLowerCase()) ||
     account.platform_account_id.includes(search)
   );
+
+  const getDisplayName = (account: typeof accounts[0]) => {
+    if ((nameCounts.get(account.account_name) || 0) > 1) {
+      const suffix = account.platform_account_id.replace("act_", "").slice(-6);
+      return `${account.account_name} (…${suffix})`;
+    }
+    return account.account_name;
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -60,7 +72,7 @@ export function AccountSelector() {
         {selectedAccount ? (
           <>
             <div className={cn("w-2 h-2 rounded-full shrink-0", PLATFORM_COLORS[selectedAccount.platform] || "bg-gray-500")} />
-            <span className="text-white/80 truncate">{selectedAccount.account_name}</span>
+            <span className="text-white/80 truncate">{getDisplayName(selectedAccount)}</span>
             <span className="text-white/30 shrink-0">{PLATFORM_LABELS[selectedAccount.platform] || selectedAccount.platform}</span>
           </>
         ) : (
@@ -130,7 +142,7 @@ export function AccountSelector() {
                 </div>
                 <div className={cn("w-2 h-2 rounded-full shrink-0", PLATFORM_COLORS[account.platform] || "bg-gray-500")} />
                 <div className="flex-1 truncate">
-                  <span className="text-white/80">{account.account_name}</span>
+                  <span className="text-white/80">{getDisplayName(account)}</span>
                 </div>
                 <span className="text-white/25 shrink-0 text-[10px]">{PLATFORM_LABELS[account.platform] || account.platform}</span>
               </button>

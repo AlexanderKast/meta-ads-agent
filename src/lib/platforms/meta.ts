@@ -297,8 +297,8 @@ export async function getAdsFromAccount(token: string, accountId: string): Promi
 const INSIGHT_FIELDS = [
   "impressions","reach","clicks","unique_clicks","spend","cpc","cpm","ctr","unique_ctr",
   "actions","action_values","cost_per_action_type",
-  "frequency","social_impressions","social_clicks",
-  "video_avg_time_watched_actions","video_p25_watched_actions","video_p50_watched_actions","video_p75_watched_actions","video_p100_watched_actions",
+  "frequency",
+  "video_p25_watched_actions",
   "inline_link_clicks","inline_link_click_ctr","cost_per_inline_link_click",
   "engagement_rate_ranking","quality_ranking","conversion_rate_ranking",
 ].join(",");
@@ -371,8 +371,8 @@ function parseInsightRow(d: Record<string, unknown>) {
     linkClicks: Number(d.inline_link_clicks) || 0,
     linkCtr: Number(d.inline_link_click_ctr) || 0,
     costPerLinkClick: Number(d.cost_per_inline_link_click) || 0,
-    socialImpressions: Number(d.social_impressions) || 0,
-    socialClicks: Number(d.social_clicks) || 0,
+    socialImpressions: 0,
+    socialClicks: 0,
     videoViews,
     engagementRateRanking: (d.engagement_rate_ranking as string) || "",
     qualityRanking: (d.quality_ranking as string) || "",

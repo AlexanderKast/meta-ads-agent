@@ -466,20 +466,19 @@ function CampaignsContent() {
 
   /* ---------- Data fetch ---------- */
   useEffect(() => {
-    fetch("/api/platforms/campaigns")
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (selectedAccountId) params.set("accountId", selectedAccountId);
+    fetch(`/api/platforms/campaigns?${params}`)
       .then((r) => r.json())
       .then((data) => setCampaigns(Array.isArray(data) ? data : []))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedAccountId]);
 
   /* ---------- Filter + sort ---------- */
   const filtered = useMemo(() => {
     let result = campaigns;
-
-    if (selectedAccountId) {
-      result = result.filter((c) => c.connected_account_id === selectedAccountId);
-    }
     if (statusFilter !== "all") {
       result = result.filter((c) => c.status === statusFilter);
     }

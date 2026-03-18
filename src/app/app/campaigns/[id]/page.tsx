@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { useAccount } from "@/contexts/account-context";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -97,6 +98,23 @@ interface Totals {
   roas: number;
   roi: number;
   videoViews: number;
+  // Engagement
+  engagement: number;
+  postReactions: number;
+  postComments: number;
+  postShares: number;
+  engagementRate: number;
+  // Instagram / Page
+  followersGained: number;
+  profileVisits: number;
+  followerConversionRate: number;
+  // Video extended
+  videoPlays: number;
+  videoThruplay: number;
+  videoComplete: number;
+  videoCompletionRate: number;
+  // Creative fatigue
+  creativeFatigueScore: number;
 }
 
 interface NewApiResponse {
@@ -181,6 +199,25 @@ const ALL_KPI_KEYS = [
   "cpm",
   "conversions",
   "costPerConversion",
+  // Engagement
+  "engagement",
+  "engagementRate",
+  "postReactions",
+  "postComments",
+  "postShares",
+  // Instagram / Page
+  "followersGained",
+  "profileVisits",
+  "followerConversionRate",
+  // Video
+  "videoViews",
+  "videoPlays",
+  "videoThruplay",
+  "videoComplete",
+  "videoCompletionRate",
+  // Fatigue
+  "frequency",
+  "creativeFatigueScore",
 ] as const;
 
 type KpiKey = (typeof ALL_KPI_KEYS)[number];
@@ -278,6 +315,115 @@ const KPI_CONFIGS: KpiConfig[] = [
     format: (v) => `$${v.toFixed(2)}`,
     higherIsBetter: false,
   },
+  // ── Engagement ──
+  {
+    key: "engagement",
+    label: "Engagement",
+    icon: <Zap className="size-4" />,
+    format: (v) => fmtNum(v),
+    higherIsBetter: true,
+  },
+  {
+    key: "engagementRate",
+    label: "Eng. Rate",
+    icon: <Percent className="size-4" />,
+    format: (v) => `${v.toFixed(2)}%`,
+    higherIsBetter: true,
+  },
+  {
+    key: "postReactions",
+    label: "Reactions",
+    icon: <Activity className="size-4" />,
+    format: (v) => fmtNum(v),
+    higherIsBetter: true,
+  },
+  {
+    key: "postComments",
+    label: "Comments",
+    icon: <Activity className="size-4" />,
+    format: (v) => fmtNum(v),
+    higherIsBetter: true,
+  },
+  {
+    key: "postShares",
+    label: "Shares",
+    icon: <Activity className="size-4" />,
+    format: (v) => fmtNum(v),
+    higherIsBetter: true,
+  },
+  // ── Instagram / Page ──
+  {
+    key: "followersGained",
+    label: "Followers +",
+    icon: <Users className="size-4" />,
+    format: (v) => fmtNum(v),
+    higherIsBetter: true,
+  },
+  {
+    key: "profileVisits",
+    label: "Profile Visits",
+    icon: <Eye className="size-4" />,
+    format: (v) => fmtNum(v),
+    higherIsBetter: true,
+  },
+  {
+    key: "followerConversionRate",
+    label: "Follow Conv %",
+    icon: <Percent className="size-4" />,
+    format: (v) => `${v.toFixed(2)}%`,
+    higherIsBetter: true,
+  },
+  // ── Video ──
+  {
+    key: "videoViews",
+    label: "Video Views",
+    icon: <Eye className="size-4" />,
+    format: (v) => fmtNum(v),
+    higherIsBetter: true,
+  },
+  {
+    key: "videoPlays",
+    label: "Video Plays",
+    icon: <Play className="size-4" />,
+    format: (v) => fmtNum(v),
+    higherIsBetter: true,
+  },
+  {
+    key: "videoThruplay",
+    label: "ThruPlays",
+    icon: <Play className="size-4" />,
+    format: (v) => fmtNum(v),
+    higherIsBetter: true,
+  },
+  {
+    key: "videoComplete",
+    label: "Vid Complete",
+    icon: <Play className="size-4" />,
+    format: (v) => fmtNum(v),
+    higherIsBetter: true,
+  },
+  {
+    key: "videoCompletionRate",
+    label: "Completion %",
+    icon: <Percent className="size-4" />,
+    format: (v) => `${v.toFixed(1)}%`,
+    higherIsBetter: true,
+  },
+  // ── Fatigue ──
+  {
+    key: "frequency",
+    label: "Frequency",
+    icon: <Activity className="size-4" />,
+    format: (v) => v.toFixed(2),
+    higherIsBetter: false,
+  },
+  {
+    key: "creativeFatigueScore",
+    label: "Fatigue Score",
+    icon: <TrendingDown className="size-4" />,
+    format: (v) => `${v.toFixed(0)}/100`,
+    higherIsBetter: false,
+  },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -332,6 +478,19 @@ function computeTotalsFromOld(data: OldDailyMetric[]): Totals {
     roas,
     roi,
     videoViews: 0,
+    engagement: 0,
+    postReactions: 0,
+    postComments: 0,
+    postShares: 0,
+    engagementRate: 0,
+    followersGained: 0,
+    profileVisits: 0,
+    followerConversionRate: 0,
+    videoPlays: 0,
+    videoThruplay: 0,
+    videoComplete: 0,
+    videoCompletionRate: 0,
+    creativeFatigueScore: 0,
   };
 }
 
@@ -372,6 +531,19 @@ function emptyTotals(): Totals {
     roas: 0,
     roi: 0,
     videoViews: 0,
+    engagement: 0,
+    postReactions: 0,
+    postComments: 0,
+    postShares: 0,
+    engagementRate: 0,
+    followersGained: 0,
+    profileVisits: 0,
+    followerConversionRate: 0,
+    videoPlays: 0,
+    videoThruplay: 0,
+    videoComplete: 0,
+    videoCompletionRate: 0,
+    creativeFatigueScore: 0,
   };
 }
 
@@ -589,19 +761,25 @@ export default function CampaignDetailPage() {
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
-  // Load campaign info
+  // Load campaign info - try with accountId for live Meta data, fallback to DB
+  const { selectedAccountId } = useAccount();
   useEffect(() => {
-    fetch("/api/platforms/campaigns")
+    const params = new URLSearchParams();
+    if (selectedAccountId) params.set("accountId", selectedAccountId);
+    fetch(`/api/platforms/campaigns?${params}`)
       .then((r) => r.json())
       .then((data) => {
-        const c = (Array.isArray(data) ? data : []).find(
-          (x: CampaignDetail) => x.id === id
+        const list = Array.isArray(data) ? data : [];
+        // Match by id (Meta campaign ID) or by platform_campaign_id
+        const c = list.find(
+          (x: CampaignDetail & { platform_campaign_id?: string }) =>
+            x.id === id || x.platform_campaign_id === id
         );
         if (c) setCampaign(c);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, selectedAccountId]);
 
   // Load metrics when campaign or period changes
   useEffect(() => {
@@ -612,8 +790,10 @@ export default function CampaignDetailPage() {
       .toISOString()
       .split("T")[0];
 
+    const metricsParams = new URLSearchParams({ startDate: start, endDate: end });
+    if (selectedAccountId) metricsParams.set("accountId", selectedAccountId);
     fetch(
-      `/api/platforms/${campaign.platform}/campaigns/${id}/metrics?startDate=${start}&endDate=${end}`
+      `/api/platforms/${campaign.platform}/campaigns/${id}/metrics?${metricsParams}`
     )
       .then((r) => r.json())
       .then((data) => {

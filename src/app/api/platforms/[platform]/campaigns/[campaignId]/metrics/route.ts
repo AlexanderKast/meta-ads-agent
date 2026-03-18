@@ -41,6 +41,8 @@ function resolvePeriod(period: string | null, startDate: string | null, endDate:
 /** Sum an array of daily metrics into totals, then compute derived fields */
 function computeTotals(rows: CampaignMetrics[]) {
   const sum = (fn: (r: CampaignMetrics) => number) => rows.reduce((s, r) => s + fn(r), 0);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sumAny = (fn: (r: any) => number) => rows.reduce((s, r) => s + fn(r), 0);
 
   const spend = sum(r => r.spend);
   const revenue = sum(r => r.revenue);
@@ -51,6 +53,16 @@ function computeTotals(rows: CampaignMetrics[]) {
   const linkClicks = sum(r => r.linkClicks);
   const conversions = sum(r => r.conversions);
   const videoViews = sum(r => r.videoViews);
+
+  // New engagement metrics
+  const engagement = sumAny(r => (r as any).engagement || 0);
+  const videoThruplay = sumAny(r => (r as any).videoThruplay || 0);
+  const videoComplete = sumAny(r => (r as any).videoComplete || 0);
+  const postReactions = sumAny(r => (r as any).postReactions || 0);
+  const postComments = sumAny(r => (r as any).postComments || 0);
+  const postShares = sumAny(r => (r as any).postShares || 0);
+  const followersGained = sumAny(r => (r as any).followersGained || 0);
+  const profileVisits = sumAny(r => (r as any).profileVisits || 0);
 
   const profit = revenue - spend;
   const frequency = reach > 0 ? impressions / reach : 0;
@@ -63,12 +75,28 @@ function computeTotals(rows: CampaignMetrics[]) {
   const roas = spend > 0 ? revenue / spend : 0;
   const roi = spend > 0 ? ((revenue - spend) / spend) * 100 : 0;
 
+  // Derived engagement metrics
+  const engagementRate = impressions > 0 ? (engagement / impressions) * 100 : 0;
+  const followerConversionRate = profileVisits > 0 ? (followersGained / profileVisits) * 100 : 0;
+
+  // Creative fatigue score: higher frequency + declining engagement = fatigue
+  // Scale 0-100: frequency > 3 starts contributing, penalized more if engagement is low
+  const creativeFatigueScore = Math.min(100, Math.max(0,
+    (frequency > 1 ? (frequency - 1) * 20 : 0) +
+    (engagementRate < 1 ? 30 : engagementRate < 2 ? 15 : 0)
+  ));
+
   return {
     spend, revenue, profit, impressions, reach, frequency,
     clicks, uniqueClicks, linkClicks,
     ctr, uniqueCtr, cpc, cpm,
     conversions, conversionRate, costPerConversion,
     roas, roi, videoViews,
+    // New engagement metrics
+    engagement, videoThruplay, videoComplete,
+    postReactions, postComments, postShares,
+    engagementRate, followersGained, profileVisits,
+    followerConversionRate, creativeFatigueScore,
   };
 }
 
@@ -82,24 +110,45 @@ function buildSparklines(rows: CampaignMetrics[]) {
     revenue: rows.map(r => r.revenue),
     ctr: rows.map(r => (r.impressions > 0 ? (r.clicks / r.impressions) * 100 : 0)),
     roas: rows.map(r => (r.spend > 0 ? r.revenue / r.spend : 0)),
+    // New engagement sparklines
+    engagement: rows.map(r => (r as any).engagement || 0),
+    videoViews: rows.map(r => r.videoViews),
+    videoThruplay: rows.map(r => (r as any).videoThruplay || 0),
+    postReactions: rows.map(r => (r as any).postReactions || 0),
+    engagementRate: rows.map(r => (r.impressions > 0 ? ((r as any).engagement || 0) / r.impressions * 100 : 0)),
   };
 }
 
 /** Build daily summary rows */
 function buildDaily(rows: CampaignMetrics[]) {
-  return rows.map(r => ({
-    date: r.date,
-    spend: r.spend,
-    revenue: r.revenue,
-    impressions: r.impressions,
-    reach: r.reach,
-    clicks: r.clicks,
-    conversions: r.conversions,
-    ctr: r.impressions > 0 ? (r.clicks / r.impressions) * 100 : 0,
-    cpc: r.clicks > 0 ? r.spend / r.clicks : 0,
-    cpm: r.impressions > 0 ? (r.spend / r.impressions) * 1000 : 0,
-    roas: r.spend > 0 ? r.revenue / r.spend : 0,
-  }));
+  return rows.map(r => {
+    const engagement = (r as any).engagement || 0;
+    return {
+      date: r.date,
+      spend: r.spend,
+      revenue: r.revenue,
+      impressions: r.impressions,
+      reach: r.reach,
+      clicks: r.clicks,
+      conversions: r.conversions,
+      ctr: r.impressions > 0 ? (r.clicks / r.impressions) * 100 : 0,
+      cpc: r.clicks > 0 ? r.spend / r.clicks : 0,
+      cpm: r.impressions > 0 ? (r.spend / r.impressions) * 1000 : 0,
+      roas: r.spend > 0 ? r.revenue / r.spend : 0,
+      // New engagement metrics
+      engagement,
+      videoViews: r.videoViews,
+      videoThruplay: (r as any).videoThruplay || 0,
+      videoComplete: (r as any).videoComplete || 0,
+      linkClicks: r.linkClicks,
+      postReactions: (r as any).postReactions || 0,
+      postComments: (r as any).postComments || 0,
+      postShares: (r as any).postShares || 0,
+      engagementRate: r.impressions > 0 ? (engagement / r.impressions) * 100 : 0,
+      followersGained: (r as any).followersGained || 0,
+      profileVisits: (r as any).profileVisits || 0,
+    };
+  });
 }
 
 export async function GET(
@@ -116,20 +165,82 @@ export async function GET(
   const period = searchParams.get("period");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
+  const accountId = searchParams.get("accountId");
 
   const { current, previous } = resolvePeriod(period, startDate, endDate);
 
-  const { data: mapping } = await supabase
-    .from("campaign_mappings")
-    .select("*, connected_accounts(*)")
-    .eq("id", campaignId)
-    .eq("user_id", userId)
-    .single();
+  // Step 1: Try lookup by UUID (original behavior)
+  let mapping: any = null;
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(campaignId);
+
+  if (isUUID) {
+    const { data } = await supabase
+      .from("campaign_mappings")
+      .select("*, connected_accounts(*)")
+      .eq("id", campaignId)
+      .eq("user_id", userId)
+      .single();
+    mapping = data;
+  }
+
+  // Step 2: If not found, try by platform_campaign_id
+  if (!mapping) {
+    const { data } = await supabase
+      .from("campaign_mappings")
+      .select("*, connected_accounts(*)")
+      .eq("platform_campaign_id", campaignId)
+      .eq("user_id", userId)
+      .single();
+    mapping = data;
+  }
+
+  // Step 3: If still not found AND accountId is provided, fetch directly from Meta API
+  if (!mapping && accountId) {
+    // Look up connected account by platform_account_id
+    const { data: account } = await supabase
+      .from("connected_accounts")
+      .select("*")
+      .eq("platform_account_id", accountId)
+      .eq("user_id", userId)
+      .single();
+
+    if (!account) return Response.json({ error: "Cuenta no encontrada" }, { status: 404 });
+
+    try {
+      const client = getPlatformClient(platform);
+      const token = decryptToken(account.access_token);
+
+      const [metrics, prevMetrics] = await Promise.all([
+        client.getMetrics({ accessToken: token }, campaignId, accountId, current),
+        client.getMetrics({ accessToken: token }, campaignId, accountId, previous),
+      ]);
+
+      const campaign = {
+        id: campaignId,
+        name: campaignId,
+        status: "unknown",
+        objective: "",
+        budget: 0,
+        platform,
+      };
+
+      const totals = computeTotals(metrics);
+      const prevTotals = computeTotals(prevMetrics);
+      const daily = buildDaily(metrics);
+      const sparklines = buildSparklines(metrics);
+
+      return Response.json({ campaign, totals, prevTotals, daily, sparklines });
+    } catch (err) {
+      return Response.json({ error: err instanceof Error ? err.message : "Error al obtener metricas" }, { status: 500 });
+    }
+  }
 
   if (!mapping) return Response.json({ error: "Campana no encontrada" }, { status: 404 });
 
   const account = mapping.connected_accounts;
   if (!account) return Response.json({ error: "Cuenta no encontrada" }, { status: 404 });
+
+  const mappingDbId = mapping.id;
 
   try {
     const client = getPlatformClient(platform);
@@ -154,7 +265,7 @@ export async function GET(
     // Upsert current period metrics to DB
     for (const m of metrics) {
       await supabase.from("campaign_metrics").upsert({
-        campaign_mapping_id: campaignId,
+        campaign_mapping_id: mappingDbId,
         date: m.date,
         impressions: m.impressions,
         clicks: m.clicks,
@@ -168,7 +279,7 @@ export async function GET(
       }, { onConflict: "campaign_mapping_id,date" });
     }
 
-    await supabase.from("campaign_mappings").update({ last_synced_at: new Date().toISOString() }).eq("id", campaignId);
+    await supabase.from("campaign_mappings").update({ last_synced_at: new Date().toISOString() }).eq("id", mappingDbId);
 
     // Build campaign info
     const campaign = {

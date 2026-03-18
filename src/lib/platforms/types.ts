@@ -58,6 +58,27 @@ export interface CampaignMetrics {
   engagementRateRanking: string;
   qualityRanking: string;
   conversionRateRanking: string;
+
+  // Engagement
+  engagement: number;         // total post_engagement actions
+  postReactions: number;      // post_reaction
+  postComments: number;       // comment
+  postShares: number;         // post (shares)
+  engagementRate: number;     // engagement / impressions * 100
+
+  // Instagram
+  followersGained: number;    // ig_follow action
+  profileVisits: number;      // page_engagement or ig actions
+  followerConversionRate: number; // followersGained / profileVisits * 100
+
+  // Video extended
+  videoPlays: number;         // video_play
+  videoThruplay: number;      // video_thruplay (15s+ or complete)
+  videoComplete: number;      // video_p100_watched
+  videoCompletionRate: number; // videoComplete / videoPlays * 100
+
+  // Creative fatigue
+  creativeFatigueScore: number; // derived from frequency + ranking deterioration
 }
 
 export interface PlatformClient {

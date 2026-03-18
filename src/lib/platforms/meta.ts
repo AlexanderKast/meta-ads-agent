@@ -299,6 +299,9 @@ const INSIGHT_FIELDS = [
   "actions","action_values","cost_per_action_type",
   "frequency",
   "video_p25_watched_actions",
+  "video_p50_watched_actions","video_p75_watched_actions","video_p100_watched_actions",
+  "video_play_actions","video_thruplay_actions",
+  "outbound_clicks",
   "inline_link_clicks","inline_link_click_ctr","cost_per_inline_link_click",
   "engagement_rate_ranking","quality_ranking","conversion_rate_ranking",
 ].join(",");
@@ -353,9 +356,59 @@ function parseInsightRow(d: Record<string, unknown>) {
   const costPerConversion = extractCostPerConversion(costPerAction);
   const videoViews = extractVideoViews(d.video_p25_watched_actions as Array<{ action_type: string; value: string }> | undefined);
 
+  // Engagement from actions
+  const engagement = actions.reduce((sum, a) => {
+    if (a.action_type === 'post_engagement') return sum + Number(a.value);
+    return sum;
+  }, 0);
+  const postReactions = actions.reduce((sum, a) => {
+    if (a.action_type === 'post_reaction') return sum + Number(a.value);
+    return sum;
+  }, 0);
+  const postComments = actions.reduce((sum, a) => {
+    if (a.action_type === 'comment') return sum + Number(a.value);
+    return sum;
+  }, 0);
+  const postShares = actions.reduce((sum, a) => {
+    if (a.action_type === 'post') return sum + Number(a.value);
+    return sum;
+  }, 0);
+
+  // Instagram
+  const followersGained = actions.reduce((sum, a) => {
+    if (a.action_type === 'like' || a.action_type === 'page_like') return sum + Number(a.value);
+    return sum;
+  }, 0);
+  const profileVisits = actions.reduce((sum, a) => {
+    if (a.action_type === 'page_engagement') return sum + Number(a.value);
+    return sum;
+  }, 0);
+
+  // Video extended
+  const videoPlays = extractVideoViews(d.video_play_actions as Array<{ action_type: string; value: string }> | undefined);
+  const videoThruplay = extractVideoViews(d.video_thruplay_actions as Array<{ action_type: string; value: string }> | undefined);
+  const videoComplete = extractVideoViews(d.video_p100_watched_actions as Array<{ action_type: string; value: string }> | undefined);
+
+  const impressionsNum = Number(d.impressions) || 0;
+  const engagementRate = impressionsNum > 0 ? (engagement / impressionsNum) * 100 : 0;
+  const followerConversionRate = profileVisits > 0 ? (followersGained / profileVisits) * 100 : 0;
+  const videoCompletionRate = videoPlays > 0 ? (videoComplete / videoPlays) * 100 : 0;
+
+  // Creative fatigue: based on frequency and quality ranking
+  const freq = Number(d.frequency) || 0;
+  const qualRank = (d.quality_ranking as string) || "";
+  const engRank = (d.engagement_rate_ranking as string) || "";
+  let creativeFatigueScore = 0;
+  if (freq > 3) creativeFatigueScore += 20;
+  if (freq > 5) creativeFatigueScore += 20;
+  if (freq > 7) creativeFatigueScore += 20;
+  if (qualRank === 'BELOW_AVERAGE_35' || qualRank === 'BELOW_AVERAGE_20') creativeFatigueScore += 20;
+  if (engRank === 'BELOW_AVERAGE_35' || engRank === 'BELOW_AVERAGE_20') creativeFatigueScore += 20;
+  creativeFatigueScore = Math.min(creativeFatigueScore, 100);
+
   return {
     date: d.date_start as string,
-    impressions: Number(d.impressions) || 0,
+    impressions: impressionsNum,
     reach: Number(d.reach) || 0,
     clicks: Number(d.clicks) || 0,
     uniqueClicks: Number(d.unique_clicks) || 0,
@@ -364,7 +417,7 @@ function parseInsightRow(d: Record<string, unknown>) {
     ctr: Number(d.ctr) || 0,
     uniqueCtr: Number(d.unique_ctr) || 0,
     cpm: Number(d.cpm) || 0,
-    frequency: Number(d.frequency) || 0,
+    frequency: freq,
     conversions,
     revenue,
     costPerConversion,
@@ -374,9 +427,26 @@ function parseInsightRow(d: Record<string, unknown>) {
     socialImpressions: 0,
     socialClicks: 0,
     videoViews,
-    engagementRateRanking: (d.engagement_rate_ranking as string) || "",
-    qualityRanking: (d.quality_ranking as string) || "",
+    engagementRateRanking: engRank,
+    qualityRanking: qualRank,
     conversionRateRanking: (d.conversion_rate_ranking as string) || "",
+    // Engagement
+    engagement,
+    postReactions,
+    postComments,
+    postShares,
+    engagementRate,
+    // Instagram
+    followersGained,
+    profileVisits,
+    followerConversionRate,
+    // Video extended
+    videoPlays,
+    videoThruplay,
+    videoComplete,
+    videoCompletionRate,
+    // Creative fatigue
+    creativeFatigueScore,
   };
 }
 

@@ -2,11 +2,12 @@ import { getSupabase, getUserId } from "@/lib/auth-helper";
 import { decryptToken } from "@/lib/platforms/token-manager";
 import { getAllAdAccounts, getBusinessManagers } from "@/lib/platforms/meta";
 
+export const maxDuration = 60;
+
 export async function GET() {
   const supabase = getSupabase();
   const userId = getUserId();
 
-  // Get the Meta connection (any active one for the token)
   const { data: account } = await supabase
     .from("connected_accounts")
     .select("*")
@@ -27,14 +28,36 @@ export async function GET() {
       getBusinessManagers(token),
     ]);
 
-    // Group accounts by BM
-    const grouped = {
+    // Save all discovered accounts to DB (batch upsert)
+    let saved = 0;
+    for (const acct of adAccounts) {
+      const { error } = await supabase.from("connected_accounts").upsert({
+        user_id: userId,
+        platform: "meta",
+        platform_account_id: acct.id,
+        account_name: acct.name,
+        access_token: account.access_token, // Same token as primary
+        refresh_token: account.refresh_token,
+        token_expires_at: account.token_expires_at,
+        is_active: true,
+        metadata: {
+          account_id: acct.account_id,
+          currency: acct.currency,
+          timezone: acct.timezone_name,
+          account_status: acct.account_status,
+          business_manager: acct.business_manager || null,
+        },
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "user_id,platform,platform_account_id" });
+      if (!error) saved++;
+    }
+
+    return Response.json({
       business_managers: bms,
       ad_accounts: adAccounts,
       total: adAccounts.length,
-    };
-
-    return Response.json(grouped);
+      saved,
+    });
   } catch (err) {
     return Response.json(
       { error: err instanceof Error ? err.message : "Error al obtener cuentas" },

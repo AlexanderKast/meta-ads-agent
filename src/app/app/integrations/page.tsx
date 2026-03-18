@@ -238,7 +238,14 @@ function IntegrationsContent() {
     try {
       const res = await fetch("/api/platforms/meta/ad-accounts");
       const data = await res.json();
-      if (res.ok) setMetaAccounts(data);
+      if (res.ok) {
+        setMetaAccounts(data);
+        toast(`${data.saved || 0} cuentas guardadas de ${data.total}`, "success");
+        // Reload accounts list so the global selector updates
+        const acctRes = await fetch("/api/platforms/accounts");
+        const acctData = await acctRes.json();
+        setAccounts(Array.isArray(acctData) ? acctData : []);
+      }
       else toast(data.error || "Error", "error");
     } catch { toast("Error al cargar cuentas", "error"); }
     finally { setLoadingMeta(false); }

@@ -8,7 +8,7 @@ export async function GET() {
     const { data: alerts, error } = await supabase
       .from("alerts")
       .select("*")
-      .eq("read", false)
+      .eq("is_read", false)
       .order("created_at", { ascending: false })
       .limit(20);
 
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
     const { error } = await supabase
       .from("alerts")
-      .update({ read: true })
+      .update({ is_read: true })
       .eq("id", id);
 
     if (error) {

@@ -26,10 +26,22 @@ export async function GET(req: NextRequest) {
   };
 
   let query = supabase.from("connected_accounts").select("*").eq("user_id", userId).eq("is_active", true);
-  if (accountId) query = query.eq("id", accountId);
-  const { data: accounts } = await query;
+  if (accountId) {
+    query = query.eq("id", accountId);
+  } else {
+    query = query.limit(10);
+  }
+  const { data: rawAccounts } = await query;
 
-  if (!accounts || accounts.length === 0) return NextResponse.json(emptyResponse);
+  if (!rawAccounts || rawAccounts.length === 0) return NextResponse.json(emptyResponse);
+
+  // Deduplicate: one account per platform
+  const seen = new Set<string>();
+  const accounts = accountId ? rawAccounts : rawAccounts.filter(a => {
+    if (seen.has(a.platform)) return false;
+    seen.add(a.platform);
+    return true;
+  });
 
   // Fetch account-level insights per platform
   const platformAgg: Record<string, { spend: number; impressions: number; clicks: number; conversions: number; revenue: number }> = {};

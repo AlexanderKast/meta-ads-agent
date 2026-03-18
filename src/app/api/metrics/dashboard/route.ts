@@ -25,14 +25,27 @@ export async function GET(request: NextRequest) {
   const emptyKpis = { spend: 0, impressions: 0, clicks: 0, ctr: 0, cpc: 0, conversions: 0, roas: 0,
     prevSpend: 0, prevImpressions: 0, prevClicks: 0, prevCtr: 0, prevCpc: 0, prevConversions: 0, prevRoas: 0 };
 
-  // Get connected accounts
+  // Get connected accounts - limit scope to avoid timeout
   let query = supabase.from("connected_accounts").select("*").eq("user_id", userId).eq("is_active", true);
-  if (accountId) query = query.eq("id", accountId);
-  const { data: accounts } = await query;
+  if (accountId) {
+    query = query.eq("id", accountId);
+  } else {
+    // Without filter: only get first account per platform to avoid 138 accounts × 3 API calls
+    query = query.limit(10);
+  }
+  const { data: rawAccounts } = await query;
 
-  if (!accounts || accounts.length === 0) {
+  if (!rawAccounts || rawAccounts.length === 0) {
     return NextResponse.json({ kpis: emptyKpis, daily: [], byPlatform: [], topCampaigns: [] });
   }
+
+  // Deduplicate: one account per platform (first one = primary)
+  const seen = new Set<string>();
+  const accounts = accountId ? rawAccounts : rawAccounts.filter(a => {
+    if (seen.has(a.platform)) return false;
+    seen.add(a.platform);
+    return true;
+  });
 
   // Aggregate across all accounts
   interface DailyRow { date: string; impressions: number; clicks: number; spend: number; conversions: number; revenue: number; }

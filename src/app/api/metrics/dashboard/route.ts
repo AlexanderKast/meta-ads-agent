@@ -6,9 +6,45 @@ import { getAccountInsights, getCampaignsWithInsights } from "@/lib/platforms/me
 export const dynamic = "force-dynamic";
 
 const emptyKpis = {
-  spend: 0, impressions: 0, clicks: 0, ctr: 0, cpc: 0, conversions: 0, roas: 0,
-  prevSpend: 0, prevImpressions: 0, prevClicks: 0, prevCtr: 0, prevCpc: 0, prevConversions: 0, prevRoas: 0,
+  spend: 0, revenue: 0, profit: 0, impressions: 0, reach: 0, frequency: 0,
+  clicks: 0, uniqueClicks: 0, linkClicks: 0,
+  ctr: 0, uniqueCtr: 0, linkCtr: 0,
+  cpc: 0, cpm: 0, costPerResult: 0, costPerConversion: 0,
+  conversions: 0, conversionRate: 0,
+  roas: 0, roi: 0,
+  videoViews: 0,
+  prevSpend: 0, prevRevenue: 0, prevProfit: 0, prevImpressions: 0, prevReach: 0, prevFrequency: 0,
+  prevClicks: 0, prevUniqueClicks: 0, prevLinkClicks: 0,
+  prevCtr: 0, prevUniqueCtr: 0, prevLinkCtr: 0,
+  prevCpc: 0, prevCpm: 0, prevCostPerResult: 0, prevCostPerConversion: 0,
+  prevConversions: 0, prevConversionRate: 0,
+  prevRoas: 0, prevRoi: 0,
+  prevVideoViews: 0,
 };
+
+/** Compute derived KPIs from raw totals */
+function computeDerived(totals: {
+  spend: number; revenue: number; impressions: number; reach: number;
+  clicks: number; uniqueClicks: number; linkClicks: number;
+  conversions: number; videoViews: number;
+}) {
+  const { spend, revenue, impressions, reach, clicks, uniqueClicks, linkClicks, conversions, videoViews } = totals;
+  return {
+    spend, revenue, impressions, reach, clicks, uniqueClicks, linkClicks, conversions, videoViews,
+    profit: revenue - spend,
+    frequency: reach > 0 ? impressions / reach : 0,
+    ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+    uniqueCtr: impressions > 0 ? (uniqueClicks / impressions) * 100 : 0,
+    linkCtr: impressions > 0 ? (linkClicks / impressions) * 100 : 0,
+    cpc: clicks > 0 ? spend / clicks : 0,
+    cpm: impressions > 0 ? (spend / impressions) * 1000 : 0,
+    costPerConversion: conversions > 0 ? spend / conversions : 0,
+    costPerResult: (conversions || clicks) > 0 ? spend / (conversions || clicks) : 0,
+    conversionRate: clicks > 0 ? (conversions / clicks) * 100 : 0,
+    roas: spend > 0 ? revenue / spend : 0,
+    roi: spend > 0 ? ((revenue - spend) / spend) * 100 : 0,
+  };
+}
 
 export async function GET(request: NextRequest) {
   const supabase = getSupabase();
@@ -32,17 +68,32 @@ export async function GET(request: NextRequest) {
   const { data: accounts } = await query;
 
   if (!accounts || accounts.length === 0) {
-    return NextResponse.json({ kpis: emptyKpis, daily: [], byPlatform: [], topCampaigns: [] });
+    return NextResponse.json({ kpis: emptyKpis, daily: [], byPlatform: [], topCampaigns: [], sparklines: {} });
   }
 
   // Aggregate data across all matched accounts
-  const dailyMap = new Map<string, { date: string; spend: number; impressions: number; clicks: number }>();
-  let totalSpend = 0, totalImpressions = 0, totalClicks = 0, totalConversions = 0, totalRevenue = 0;
-  let prevSpend = 0, prevImpressions = 0, prevClicks = 0, prevConversions = 0, prevRevenue = 0;
+  type DailyRow = {
+    date: string; spend: number; impressions: number; reach: number; clicks: number;
+    conversions: number; revenue: number; cpc: number; cpm: number; ctr: number; roas: number;
+  };
+  const dailyMap = new Map<string, DailyRow>();
+
+  // Current period totals
+  let totalSpend = 0, totalImpressions = 0, totalReach = 0, totalClicks = 0;
+  let totalUniqueClicks = 0, totalLinkClicks = 0;
+  let totalConversions = 0, totalRevenue = 0, totalVideoViews = 0;
+
+  // Previous period totals
+  let prevSpend = 0, prevImpressions = 0, prevReach = 0, prevClicks = 0;
+  let prevUniqueClicks = 0, prevLinkClicks = 0;
+  let prevConversions = 0, prevRevenue = 0, prevVideoViews = 0;
+
   const allCampaigns: Array<{
     id: string; name: string; status: string; objective: string;
     budget: number; spend: number; impressions: number; clicks: number;
-    conversions: number; revenue: number; platform: string;
+    conversions: number; revenue: number; ctr: number; cpc: number;
+    linkClicks: number; uniqueClicks: number; videoViews: number;
+    platform: string;
   }> = [];
   const platformSpend: Record<string, { spend: number; impressions: number }> = {};
 
@@ -58,9 +109,13 @@ export async function GET(request: NextRequest) {
       for (const r of daily) {
         totalSpend += r.spend;
         totalImpressions += r.impressions;
+        totalReach += r.reach;
         totalClicks += r.clicks;
+        totalUniqueClicks += r.uniqueClicks;
+        totalLinkClicks += r.linkClicks;
         totalConversions += r.conversions;
         totalRevenue += r.revenue;
+        totalVideoViews += r.videoViews;
         accountSpend += r.spend;
         accountImpressions += r.impressions;
 
@@ -68,21 +123,32 @@ export async function GET(request: NextRequest) {
         if (existing) {
           existing.spend += r.spend;
           existing.impressions += r.impressions;
+          existing.reach += r.reach;
           existing.clicks += r.clicks;
+          existing.conversions += r.conversions;
+          existing.revenue += r.revenue;
         } else {
-          dailyMap.set(r.date, { date: r.date, spend: r.spend, impressions: r.impressions, clicks: r.clicks });
+          dailyMap.set(r.date, {
+            date: r.date, spend: r.spend, impressions: r.impressions, reach: r.reach,
+            clicks: r.clicks, conversions: r.conversions, revenue: r.revenue,
+            cpc: 0, cpm: 0, ctr: 0, roas: 0,
+          });
         }
       }
 
-      // Previous period insights (aggregated, not daily)
+      // Previous period insights
       try {
         const prevDaily = await getAccountInsights(token, account.platform_account_id, { start: prevStartDate, end: prevEndDate });
         for (const r of prevDaily) {
           prevSpend += r.spend;
           prevImpressions += r.impressions;
+          prevReach += r.reach;
           prevClicks += r.clicks;
+          prevUniqueClicks += r.uniqueClicks;
+          prevLinkClicks += r.linkClicks;
           prevConversions += r.conversions;
           prevRevenue += r.revenue;
+          prevVideoViews += r.videoViews;
         }
       } catch {
         // Previous period may fail if account is too new - that's OK
@@ -92,7 +158,24 @@ export async function GET(request: NextRequest) {
       try {
         const campaigns = await getCampaignsWithInsights(token, account.platform_account_id, { start: startDate, end: endDate });
         for (const c of campaigns) {
-          allCampaigns.push({ ...c, platform });
+          allCampaigns.push({
+            id: c.id,
+            name: c.name,
+            status: c.status,
+            objective: c.objective,
+            budget: c.budget,
+            spend: c.spend,
+            impressions: c.impressions,
+            clicks: c.clicks,
+            conversions: c.conversions,
+            revenue: c.revenue,
+            ctr: c.ctr,
+            cpc: c.cpc,
+            linkClicks: c.linkClicks,
+            uniqueClicks: c.uniqueClicks,
+            videoViews: c.videoViews,
+            platform,
+          });
         }
       } catch {
         // Campaign data is optional
@@ -108,26 +191,62 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Build daily chart sorted by date
-  const dailyChart = Array.from(dailyMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+  // Build daily chart sorted by date, with derived daily metrics
+  const dailyChart = Array.from(dailyMap.values())
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map(d => ({
+      ...d,
+      cpc: d.clicks > 0 ? d.spend / d.clicks : 0,
+      cpm: d.impressions > 0 ? (d.spend / d.impressions) * 1000 : 0,
+      ctr: d.impressions > 0 ? (d.clicks / d.impressions) * 100 : 0,
+      roas: d.spend > 0 ? d.revenue / d.spend : 0,
+    }));
 
-  // Compute derived KPIs
-  const ctr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
-  const cpc = totalClicks > 0 ? totalSpend / totalClicks : 0;
-  const roas = totalSpend > 0 ? totalRevenue / totalSpend : 0;
-  const prevCtr = prevImpressions > 0 ? (prevClicks / prevImpressions) * 100 : 0;
-  const prevCpc = prevClicks > 0 ? prevSpend / prevClicks : 0;
-  const prevRoas = prevSpend > 0 ? prevRevenue / prevSpend : 0;
+  // Compute KPIs for current period
+  const currentDerived = computeDerived({
+    spend: totalSpend, revenue: totalRevenue, impressions: totalImpressions, reach: totalReach,
+    clicks: totalClicks, uniqueClicks: totalUniqueClicks, linkClicks: totalLinkClicks,
+    conversions: totalConversions, videoViews: totalVideoViews,
+  });
 
-  // Top campaigns sorted by ROAS (revenue/spend), top 5
+  // Compute KPIs for previous period
+  const prevDerived = computeDerived({
+    spend: prevSpend, revenue: prevRevenue, impressions: prevImpressions, reach: prevReach,
+    clicks: prevClicks, uniqueClicks: prevUniqueClicks, linkClicks: prevLinkClicks,
+    conversions: prevConversions, videoViews: prevVideoViews,
+  });
+
+  // Build sparklines from last 7 days of daily data
+  const last7 = dailyChart.slice(-7);
+  const sparklines: Record<string, number[]> = {
+    spend: last7.map(d => d.spend),
+    impressions: last7.map(d => d.impressions),
+    clicks: last7.map(d => d.clicks),
+    conversions: last7.map(d => d.conversions),
+    revenue: last7.map(d => d.revenue),
+    cpc: last7.map(d => d.cpc),
+    cpm: last7.map(d => d.cpm),
+    ctr: last7.map(d => d.ctr),
+    roas: last7.map(d => d.roas),
+    reach: last7.map(d => d.reach),
+  };
+
+  // Top campaigns sorted by ROAS, top 10
   const topCampaigns = allCampaigns
     .filter(c => c.spend > 0)
     .map(c => ({
       name: c.name,
       platform: c.platform,
-      spend: c.spend,
-      roas: c.spend > 0 ? c.revenue / c.spend : 0,
       status: c.status,
+      objective: c.objective,
+      spend: c.spend,
+      revenue: c.revenue,
+      roas: c.spend > 0 ? c.revenue / c.spend : 0,
+      ctr: c.ctr,
+      cpc: c.cpc,
+      conversions: c.conversions,
+      impressions: c.impressions,
+      clicks: c.clicks,
     }))
     .sort((a, b) => b.roas - a.roas)
     .slice(0, 10);
@@ -141,13 +260,32 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     kpis: {
-      spend: totalSpend, impressions: totalImpressions, clicks: totalClicks,
-      ctr, cpc, conversions: totalConversions, roas,
-      prevSpend, prevImpressions, prevClicks,
-      prevCtr, prevCpc, prevConversions, prevRoas,
+      ...currentDerived,
+      prevSpend: prevDerived.spend,
+      prevRevenue: prevDerived.revenue,
+      prevProfit: prevDerived.profit,
+      prevImpressions: prevDerived.impressions,
+      prevReach: prevDerived.reach,
+      prevFrequency: prevDerived.frequency,
+      prevClicks: prevDerived.clicks,
+      prevUniqueClicks: prevDerived.uniqueClicks,
+      prevLinkClicks: prevDerived.linkClicks,
+      prevCtr: prevDerived.ctr,
+      prevUniqueCtr: prevDerived.uniqueCtr,
+      prevLinkCtr: prevDerived.linkCtr,
+      prevCpc: prevDerived.cpc,
+      prevCpm: prevDerived.cpm,
+      prevCostPerResult: prevDerived.costPerResult,
+      prevCostPerConversion: prevDerived.costPerConversion,
+      prevConversions: prevDerived.conversions,
+      prevConversionRate: prevDerived.conversionRate,
+      prevRoas: prevDerived.roas,
+      prevRoi: prevDerived.roi,
+      prevVideoViews: prevDerived.videoViews,
     },
     daily: dailyChart,
     byPlatform: byPlatform.length > 0 ? byPlatform : [{ platform: "meta", spend: totalSpend, impressions: totalImpressions }],
     topCampaigns,
+    sparklines,
   });
 }

@@ -1,40 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { KPICards } from "@/components/dashboard/kpi-cards";
+import type { KPIData, DailyData } from "@/components/dashboard/kpi-cards";
 import { LineChartComponent } from "@/components/charts/line-chart";
 import { PieChartComponent } from "@/components/charts/pie-chart";
+import { BarChartComponent } from "@/components/charts/bar-chart";
 import { TopCampaigns } from "@/components/dashboard/top-campaigns";
+import type { Campaign } from "@/components/dashboard/top-campaigns";
 import { AlertsWidget } from "@/components/dashboard/alerts-widget";
+import {
+  MetricsConfigModal,
+  loadMetricsConfig,
+} from "@/components/dashboard/metrics-config-modal";
 import { useAccount } from "@/contexts/account-context";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
-import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
-interface KPIData {
-  spend: number;
-  impressions: number;
-  clicks: number;
-  ctr: number;
-  cpc: number;
-  conversions: number;
-  roas: number;
-  prevSpend?: number;
-  prevImpressions?: number;
-  prevClicks?: number;
-  prevCtr?: number;
-  prevCpc?: number;
-  prevConversions?: number;
-  prevRoas?: number;
-}
-
-interface DailyData {
-  date: string;
-  spend: number;
-  impressions: number;
-  clicks: number;
-}
+/* ------------------------------------------------------------------ */
+/*  Types                                                              */
+/* ------------------------------------------------------------------ */
 
 interface PlatformData {
   platform: string;
@@ -42,30 +27,30 @@ interface PlatformData {
   impressions: number;
 }
 
-interface CampaignData {
-  name: string;
-  platform: string;
-  spend: number;
-  roas: number;
-  status?: string;
-}
-
 interface DashboardData {
   kpis: KPIData;
   daily: DailyData[];
   byPlatform: PlatformData[];
-  topCampaigns: CampaignData[];
+  topCampaigns: Campaign[];
 }
+
+/* ------------------------------------------------------------------ */
+/*  Skeletons                                                          */
+/* ------------------------------------------------------------------ */
 
 function KPISkeleton() {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-      {Array.from({ length: 7 }).map((_, i) => (
-        <Card key={i} variant="bordered" className="space-y-2 p-4">
-          <Skeleton className="h-3 w-16" />
-          <Skeleton className="h-7 w-24" />
-          <Skeleton className="h-3 w-12" />
-        </Card>
+    <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div
+          key={i}
+          className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-4 space-y-2"
+        >
+          <Skeleton className="h-3 w-16 bg-white/[0.06]" />
+          <Skeleton className="h-7 w-24 bg-white/[0.06]" />
+          <Skeleton className="h-3 w-12 bg-white/[0.06]" />
+          <Skeleton className="h-8 w-full bg-white/[0.06]" />
+        </div>
       ))}
     </div>
   );
@@ -73,34 +58,106 @@ function KPISkeleton() {
 
 function ChartSkeleton({ className }: { className?: string }) {
   return (
-    <Card variant="bordered" className={className}>
-      <Skeleton className="h-4 w-32 mb-4" />
-      <Skeleton className="h-64 w-full rounded-lg" />
-    </Card>
+    <div
+      className={cn(
+        "rounded-2xl border border-white/[0.06] bg-white/[0.03] backdrop-blur-xl p-5",
+        className
+      )}
+    >
+      <Skeleton className="h-4 w-32 mb-4 bg-white/[0.06]" />
+      <Skeleton className="h-72 w-full rounded-xl bg-white/[0.06]" />
+    </div>
   );
 }
 
 function BottomSkeleton() {
   return (
-    <Card variant="bordered">
-      <Skeleton className="h-4 w-40 mb-4" />
+    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5">
+      <Skeleton className="h-4 w-40 mb-4 bg-white/[0.06]" />
       <div className="space-y-3">
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="flex items-center gap-3">
-            <Skeleton className="h-6 w-6 rounded-full" />
-            <Skeleton className="h-4 flex-1" />
-            <Skeleton className="h-4 w-16" />
+            <Skeleton className="h-6 w-6 rounded-full bg-white/[0.06]" />
+            <Skeleton className="h-4 flex-1 bg-white/[0.06]" />
+            <Skeleton className="h-4 w-16 bg-white/[0.06]" />
           </div>
         ))}
       </div>
-    </Card>
+    </div>
   );
 }
+
+/* ------------------------------------------------------------------ */
+/*  Glass card wrapper                                                 */
+/* ------------------------------------------------------------------ */
+
+function GlassCard({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-2xl border border-white/[0.06] bg-white/[0.03] backdrop-blur-xl p-5",
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Period pills                                                       */
+/* ------------------------------------------------------------------ */
+
+const PERIODS = [
+  { value: "7d", label: "7 dias" },
+  { value: "30d", label: "30 dias" },
+  { value: "90d", label: "90 dias" },
+];
+
+function PeriodPills({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="inline-flex items-center gap-1 rounded-xl bg-white/[0.04] p-1">
+      {PERIODS.map((p) => (
+        <button
+          key={p.value}
+          onClick={() => onChange(p.value)}
+          className={cn(
+            "px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+            value === p.value
+              ? "bg-white/[0.1] text-white shadow-sm"
+              : "text-[#6b7280] hover:text-[#9ca3af]"
+          )}
+        >
+          {p.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Main Page                                                          */
+/* ------------------------------------------------------------------ */
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("7d");
+  const [visibleMetrics, setVisibleMetrics] = useState<string[]>(() =>
+    loadMetricsConfig()
+  );
   const { selectedAccountId } = useAccount();
 
   useEffect(() => {
@@ -108,9 +165,9 @@ export default function DashboardPage() {
     const params = new URLSearchParams();
     if (selectedAccountId) params.set("accountId", selectedAccountId);
     params.set("period", period);
-    fetch(`/api/metrics/dashboard?${params}`)
+    fetch("/api/metrics/dashboard?" + params.toString())
       .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        if (!r.ok) throw new Error("HTTP " + r.status);
         return r.json();
       })
       .then((d) => setData(d))
@@ -121,33 +178,56 @@ export default function DashboardPage() {
       .finally(() => setLoading(false));
   }, [selectedAccountId, period]);
 
+  const handleMetricsChange = useCallback((metrics: string[]) => {
+    setVisibleMetrics(metrics);
+  }, []);
+
+  // Prepare campaign comparison bar data
+  const campaignBarData =
+    data?.topCampaigns
+      .filter((c) => c.spend > 0)
+      .slice(0, 8)
+      .map((c) => ({
+        name: c.name.length > 20 ? c.name.slice(0, 18) + "..." : c.name,
+        spend: c.spend,
+      })) || [];
+
   return (
     <div className="max-w-7xl space-y-6">
-      {/* Header with period tabs */}
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-text-primary">Dashboard</h1>
-          <p className="text-sm text-text-muted mt-0.5">Vista general del rendimiento de tus campanas</p>
+          <h1 className="text-2xl font-bold text-white tracking-tight">
+            Dashboard
+          </h1>
+          <p className="text-sm text-[#6b7280] mt-0.5">
+            Vista general del rendimiento de tus campanas
+          </p>
         </div>
-        <Tabs defaultValue="7d" onValueChange={(v) => setPeriod(v as string)}>
-          <TabsList>
-            <TabsTrigger value="7d">7 dias</TabsTrigger>
-            <TabsTrigger value="30d">30 dias</TabsTrigger>
-            <TabsTrigger value="90d">90 dias</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="flex items-center gap-3">
+          <PeriodPills value={period} onChange={setPeriod} />
+          <MetricsConfigModal
+            visibleMetrics={visibleMetrics}
+            onChange={handleMetricsChange}
+          />
+        </div>
       </div>
 
-      <Separator />
+      {/* Subtle divider */}
+      <div className="h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
 
       {/* KPI Cards */}
       {loading || !data ? (
         <KPISkeleton />
       ) : (
-        <KPICards data={data.kpis} />
+        <KPICards
+          data={data.kpis}
+          dailyData={data.daily}
+          visibleMetrics={visibleMetrics}
+        />
       )}
 
-      {/* Charts row */}
+      {/* Charts row: 2/3 area chart + 1/3 donut */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {loading || !data ? (
           <>
@@ -156,29 +236,51 @@ export default function DashboardPage() {
           </>
         ) : (
           <>
-            <Card variant="bordered" className="lg:col-span-2">
-              <h2 className="text-sm font-semibold text-text-primary mb-3">Gasto a lo largo del tiempo</h2>
+            <GlassCard className="lg:col-span-2">
+              <h2 className="text-sm font-semibold text-white mb-3">
+                Rendimiento a lo largo del tiempo
+              </h2>
               <LineChartComponent
                 data={data.daily}
                 dataKeys={[
                   { key: "spend", color: "#f97316", label: "Spend" },
                   { key: "clicks", color: "#ec4899", label: "Clicks" },
+                  { key: "impressions", color: "#3b82f6", label: "Impressions" },
                 ]}
                 xAxisKey="date"
+                toggleable
               />
-            </Card>
-            <Card variant="bordered">
-              <h2 className="text-sm font-semibold text-text-primary mb-3">Gasto por plataforma</h2>
+            </GlassCard>
+            <GlassCard>
+              <h2 className="text-sm font-semibold text-white mb-3">
+                Gasto por plataforma
+              </h2>
               <PieChartComponent data={data.byPlatform} />
-            </Card>
+            </GlassCard>
           </>
         )}
       </div>
 
-      <Separator />
+      {/* Campaign comparison bar chart */}
+      {!loading && data && campaignBarData.length > 0 && (
+        <GlassCard>
+          <h2 className="text-sm font-semibold text-white mb-3">
+            Comparativa de campanas
+          </h2>
+          <BarChartComponent
+            data={campaignBarData}
+            dataKeys={[{ key: "spend", label: "Spend", color: "#f97316" }]}
+            xAxisKey="name"
+            height={260}
+          />
+        </GlassCard>
+      )}
 
-      {/* Bottom row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Subtle divider */}
+      <div className="h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
+
+      {/* Bottom: full-width campaigns + alerts sidebar */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {loading ? (
           <>
             <BottomSkeleton />
@@ -186,7 +288,10 @@ export default function DashboardPage() {
           </>
         ) : (
           <>
-            <TopCampaigns campaigns={data?.topCampaigns} />
+            <TopCampaigns
+              campaigns={data?.topCampaigns}
+              className="lg:col-span-2"
+            />
             <AlertsWidget />
           </>
         )}

@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { BellIcon } from "lucide-react";
 
 interface Alert {
   id: string;
@@ -17,9 +16,9 @@ interface Alert {
 }
 
 const severityStyles: Record<string, { badge: "warning" | "info" | "default"; border: string; icon: string }> = {
-  warning: { badge: "warning", border: "border-l-warning", icon: "\u26A0\uFE0F" },
-  critical: { badge: "default", border: "border-l-error", icon: "\uD83D\uDEA8" },
-  info: { badge: "info", border: "border-l-info", icon: "\u2139\uFE0F" },
+  warning: { badge: "warning", border: "border-l-yellow-500/60", icon: "\u26A0\uFE0F" },
+  critical: { badge: "default", border: "border-l-red-500/60", icon: "\uD83D\uDEA8" },
+  info: { badge: "info", border: "border-l-blue-500/60", icon: "\u2139\uFE0F" },
 };
 
 export function AlertsWidget({ className }: { className?: string }) {
@@ -46,24 +45,34 @@ export function AlertsWidget({ className }: { className?: string }) {
   };
 
   return (
-    <Card variant="bordered" className={cn("space-y-3", className)}>
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-text-primary">Alertas</h3>
+    <div
+      className={cn(
+        "rounded-2xl border border-white/[0.06] bg-white/[0.03] backdrop-blur-xl p-5",
+        className
+      )}
+    >
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <BellIcon className="w-4 h-4 text-[#9ca3af]" />
+          <h3 className="text-sm font-semibold text-white">Alertas</h3>
+        </div>
         {unreadCount > 0 && (
           <Badge variant="warning">{unreadCount} sin leer</Badge>
         )}
       </div>
 
-      <Separator />
+      <div className="h-px bg-white/[0.06] -mx-5 mb-4" />
 
       {loading ? (
-        <div className="flex justify-center py-4">
+        <div className="flex justify-center py-6">
           <Spinner size="sm" />
         </div>
       ) : alerts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-6 text-center">
-          <span className="text-2xl mb-2">{"\u2705"}</span>
-          <p className="text-xs text-text-dim">No hay alertas activas</p>
+        <div className="flex flex-col items-center justify-center py-8 text-center">
+          <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center mb-3">
+            <span className="text-green-400 text-lg">{"\u2713"}</span>
+          </div>
+          <p className="text-xs text-[#6b7280]">No hay alertas activas</p>
         </div>
       ) : (
         <ScrollArea className="h-56">
@@ -75,11 +84,11 @@ export function AlertsWidget({ className }: { className?: string }) {
                   key={alert.id}
                   onClick={() => !alert.read && markAsRead(alert.id)}
                   className={cn(
-                    "w-full text-left rounded-lg border-l-4 px-3 py-2.5 text-xs transition-all",
+                    "w-full text-left rounded-xl border-l-[3px] px-3 py-3 text-xs transition-all",
                     style.border,
                     alert.read
-                      ? "bg-transparent text-text-dim opacity-60"
-                      : "bg-surface text-text-secondary hover:bg-surface-hover"
+                      ? "bg-transparent text-[#6b7280] opacity-50"
+                      : "bg-white/[0.03] text-[#d1d5db] hover:bg-white/[0.06]"
                   )}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -91,7 +100,7 @@ export function AlertsWidget({ className }: { className?: string }) {
                       {alert.severity}
                     </Badge>
                   </div>
-                  <span className="text-text-dim mt-1.5 block text-[10px] pl-5">
+                  <span className="text-[#6b7280] mt-1.5 block text-[10px] pl-5">
                     {new Date(alert.created_at).toLocaleDateString()}
                   </span>
                 </button>
@@ -100,6 +109,6 @@ export function AlertsWidget({ className }: { className?: string }) {
           </div>
         </ScrollArea>
       )}
-    </Card>
+    </div>
   );
 }

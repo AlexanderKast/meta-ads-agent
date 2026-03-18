@@ -304,56 +304,118 @@ export async function getAdsFromAccount(token: string, accountId: string): Promi
   return ads;
 }
 
+const INSIGHT_FIELDS = [
+  "impressions","reach","clicks","unique_clicks","spend","cpc","cpm","ctr","unique_ctr",
+  "actions","action_values","cost_per_action_type",
+  "frequency","social_impressions","social_clicks",
+  "video_avg_time_watched_actions","video_p25_watched_actions","video_p50_watched_actions","video_p75_watched_actions","video_p100_watched_actions",
+  "inline_link_clicks","inline_link_click_ctr","cost_per_inline_link_click",
+  "engagement_rate_ranking","quality_ranking","conversion_rate_ranking",
+].join(",");
+
+/** Helper: extract conversions from actions array (purchase > lead > complete_registration) */
+function extractConversions(actions: Array<{ action_type: string; value: string }>): number {
+  const purchase = actions.find(a => a.action_type === "offsite_conversion.fb_pixel_purchase");
+  if (purchase) return Number(purchase.value) || 0;
+  const lead = actions.find(a => a.action_type === "lead");
+  if (lead) return Number(lead.value) || 0;
+  const reg = actions.find(a => a.action_type === "complete_registration");
+  if (reg) return Number(reg.value) || 0;
+  // Fallback to generic offsite_conversion
+  const generic = actions.find(a => a.action_type === "offsite_conversion");
+  return Number(generic?.value) || 0;
+}
+
+/** Helper: extract revenue from action_values array */
+function extractRevenue(actionValues: Array<{ action_type: string; value: string }>): number {
+  const purchase = actionValues.find(a => a.action_type === "offsite_conversion.fb_pixel_purchase");
+  if (purchase) return Number(purchase.value) || 0;
+  const generic = actionValues.find(a => a.action_type === "offsite_conversion");
+  return Number(generic?.value) || 0;
+}
+
+/** Helper: extract cost_per_conversion from cost_per_action_type array */
+function extractCostPerConversion(costPerAction: Array<{ action_type: string; value: string }>): number {
+  const purchase = costPerAction.find(a => a.action_type === "offsite_conversion.fb_pixel_purchase");
+  if (purchase) return Number(purchase.value) || 0;
+  const lead = costPerAction.find(a => a.action_type === "lead");
+  if (lead) return Number(lead.value) || 0;
+  const reg = costPerAction.find(a => a.action_type === "complete_registration");
+  if (reg) return Number(reg.value) || 0;
+  const generic = costPerAction.find(a => a.action_type === "offsite_conversion");
+  return Number(generic?.value) || 0;
+}
+
+/** Helper: sum video view values from video_p25_watched_actions */
+function extractVideoViews(videoActions: Array<{ action_type: string; value: string }> | undefined): number {
+  if (!videoActions || !Array.isArray(videoActions)) return 0;
+  return videoActions.reduce((sum, a) => sum + (Number(a.value) || 0), 0);
+}
+
+/** Parse a full insight row into our extended metrics shape */
+function parseInsightRow(d: Record<string, unknown>) {
+  const actions = d.actions as Array<{ action_type: string; value: string }> || [];
+  const actionValues = d.action_values as Array<{ action_type: string; value: string }> || [];
+  const costPerAction = d.cost_per_action_type as Array<{ action_type: string; value: string }> || [];
+
+  const conversions = extractConversions(actions);
+  const revenue = extractRevenue(actionValues);
+  const costPerConversion = extractCostPerConversion(costPerAction);
+  const videoViews = extractVideoViews(d.video_p25_watched_actions as Array<{ action_type: string; value: string }> | undefined);
+
+  return {
+    date: d.date_start as string,
+    impressions: Number(d.impressions) || 0,
+    reach: Number(d.reach) || 0,
+    clicks: Number(d.clicks) || 0,
+    uniqueClicks: Number(d.unique_clicks) || 0,
+    spend: Number(d.spend) || 0,
+    cpc: Number(d.cpc) || 0,
+    ctr: Number(d.ctr) || 0,
+    uniqueCtr: Number(d.unique_ctr) || 0,
+    cpm: Number(d.cpm) || 0,
+    frequency: Number(d.frequency) || 0,
+    conversions,
+    revenue,
+    costPerConversion,
+    linkClicks: Number(d.inline_link_clicks) || 0,
+    linkCtr: Number(d.inline_link_click_ctr) || 0,
+    costPerLinkClick: Number(d.cost_per_inline_link_click) || 0,
+    socialImpressions: Number(d.social_impressions) || 0,
+    socialClicks: Number(d.social_clicks) || 0,
+    videoViews,
+    engagementRateRanking: (d.engagement_rate_ranking as string) || "",
+    qualityRanking: (d.quality_ranking as string) || "",
+    conversionRateRanking: (d.conversion_rate_ranking as string) || "",
+  };
+}
+
 /** Fetch account-level daily insights (single API call, much faster than per-campaign) */
 export async function getAccountInsights(token: string, accountId: string, dateRange: { start: string; end: string }) {
   const data = await fbApi(
-    `/${accountId}/insights?fields=impressions,clicks,spend,reach,actions,action_values,cpc,ctr,cpm&time_range={"since":"${dateRange.start}","until":"${dateRange.end}"}&time_increment=1`,
+    `/${accountId}/insights?fields=${INSIGHT_FIELDS}&time_range={"since":"${dateRange.start}","until":"${dateRange.end}"}&time_increment=1`,
     token
   );
-  return (data.data || []).map((d: Record<string, unknown>) => {
-    const actions = d.actions as Array<{ action_type: string; value: string }> || [];
-    const actionValues = d.action_values as Array<{ action_type: string; value: string }> || [];
-    const conversions = actions.find(a => a.action_type === "offsite_conversion")?.value || "0";
-    const revenue = actionValues.find(a => a.action_type === "offsite_conversion")?.value || "0";
-    return {
-      date: d.date_start as string,
-      impressions: Number(d.impressions) || 0,
-      reach: Number(d.reach) || 0,
-      clicks: Number(d.clicks) || 0,
-      spend: Number(d.spend) || 0,
-      cpc: Number(d.cpc) || 0,
-      ctr: Number(d.ctr) || 0,
-      cpm: Number(d.cpm) || 0,
-      conversions: Number(conversions),
-      revenue: Number(revenue),
-    };
-  });
+  return (data.data || []).map((d: Record<string, unknown>) => parseInsightRow(d));
 }
 
 /** Fetch campaigns with aggregated insights in ONE call */
 export async function getCampaignsWithInsights(token: string, accountId: string, dateRange: { start: string; end: string }) {
   const data = await fbApi(
-    `/${accountId}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget,insights.time_range({"since":"${dateRange.start}","until":"${dateRange.end}"}){impressions,clicks,spend,actions,action_values}&limit=200`,
+    `/${accountId}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget,insights.time_range({"since":"${dateRange.start}","until":"${dateRange.end}"}){${INSIGHT_FIELDS}}&limit=200`,
     token
   );
   return (data.data || []).map((c: Record<string, unknown>) => {
     const insights = (c.insights as Record<string, unknown>)?.data as Array<Record<string, unknown>> || [];
     const row = insights[0] || {};
-    const actions = row.actions as Array<{ action_type: string; value: string }> || [];
-    const actionValues = row.action_values as Array<{ action_type: string; value: string }> || [];
-    const conversions = actions.find(a => a.action_type === "offsite_conversion")?.value || "0";
-    const revenue = actionValues.find(a => a.action_type === "offsite_conversion")?.value || "0";
+    const parsed = parseInsightRow(row);
     return {
       id: c.id as string,
       name: c.name as string,
       status: (c.status as string || "").toLowerCase(),
       objective: c.objective as string || "",
       budget: ((c.daily_budget || c.lifetime_budget) as number) / 100 || 0,
-      spend: Number(row.spend) || 0,
-      impressions: Number(row.impressions) || 0,
-      clicks: Number(row.clicks) || 0,
-      conversions: Number(conversions),
-      revenue: Number(revenue),
+      ...parsed,
     };
   });
 }

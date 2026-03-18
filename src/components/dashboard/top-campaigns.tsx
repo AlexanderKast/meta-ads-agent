@@ -1,9 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 interface Campaign {
@@ -28,27 +26,17 @@ const platformColors: Record<string, string> = {
   linkedin: "bg-sky-600/20 text-sky-400",
 };
 
-export function TopCampaigns({ className }: { className?: string }) {
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [loading, setLoading] = useState(true);
+interface TopCampaignsProps {
+  campaigns?: Campaign[];
+  className?: string;
+}
 
-  useEffect(() => {
-    fetch("/api/metrics/dashboard")
-      .then((r) => r.json())
-      .then((data) => setCampaigns(data.topCampaigns || []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
+export function TopCampaigns({ campaigns = [], className }: TopCampaignsProps) {
   return (
     <Card variant="bordered" className={cn("space-y-3", className)}>
       <h3 className="text-sm font-semibold text-text-primary">Top Campaigns by ROAS</h3>
 
-      {loading ? (
-        <div className="flex justify-center py-4">
-          <Spinner size="sm" />
-        </div>
-      ) : campaigns.length === 0 ? (
+      {campaigns.length === 0 ? (
         <p className="text-xs text-text-dim py-2">No campaign data</p>
       ) : (
         <div className="overflow-x-auto">

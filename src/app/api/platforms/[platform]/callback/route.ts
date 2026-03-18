@@ -30,7 +30,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const userId = getUserId();
 
-    // Return HTML that saves the account via fetch, then redirects
+    // Save the primary token first (needed to discover ad accounts later)
     const savePayload = JSON.stringify({
       userId,
       platform,
@@ -41,6 +41,44 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       expiresAt: tokens.expiresAt?.toISOString(),
     });
 
+    // For Meta, redirect to account selection page instead of auto-saving all accounts
+    if (platform === "meta") {
+      const html = `<!DOCTYPE html>
+<html><head><title>Conectando...</title></head>
+<body style="background:#111;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+<div style="text-align:center">
+  <p id="status">Guardando token...</p>
+  <script>
+    (async function() {
+      try {
+        const res = await fetch("${baseUrl}/api/platforms/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: ${JSON.stringify(savePayload)},
+        });
+        const data = await res.json();
+        if (data.success) {
+          document.getElementById("status").textContent = "Conectado! Cargando cuentas...";
+          window.location.href = "${baseUrl}/app/integrations/select-accounts";
+        } else {
+          document.getElementById("status").textContent = "Error: " + (data.error || "Unknown");
+          setTimeout(() => window.location.href = "${baseUrl}/app/integrations?error=" + encodeURIComponent(data.error || "save_failed"), 3000);
+        }
+      } catch(e) {
+        document.getElementById("status").textContent = "Error: " + e.message;
+        setTimeout(() => window.location.href = "${baseUrl}/app/integrations?error=save_exception", 3000);
+      }
+    })();
+  </script>
+</div>
+</body></html>`;
+
+      return new Response(html, {
+        headers: { "Content-Type": "text/html" },
+      });
+    }
+
+    // For non-Meta platforms, save directly and redirect
     const html = `<!DOCTYPE html>
 <html><head><title>Conectando...</title></head>
 <body style="background:#111;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">

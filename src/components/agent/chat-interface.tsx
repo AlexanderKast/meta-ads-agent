@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, type KeyboardEvent } from "react";
 import { cn } from "@/lib/utils";
 import { useAgentChat } from "@/hooks/use-agent-chat";
+import { useAccount } from "@/contexts/account-context";
 import { MessageBubble } from "@/components/agent/message-bubble";
 import { Button } from "@/components/ui/button";
 
@@ -39,7 +40,8 @@ function SendIcon() {
 }
 
 export function ChatInterface() {
-  const { messages, isLoading, error, sendMessage, clearMessages } = useAgentChat();
+  const { selectedAccountId } = useAccount();
+  const { messages, isLoading, error, sendMessage, clearMessages } = useAgentChat(selectedAccountId);
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);

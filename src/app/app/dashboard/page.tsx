@@ -39,10 +39,19 @@ interface PlatformData {
   impressions: number;
 }
 
+interface CampaignData {
+  name: string;
+  platform: string;
+  spend: number;
+  roas: number;
+  status?: string;
+}
+
 interface DashboardData {
   kpis: KPIData;
   daily: DailyData[];
   byPlatform: PlatformData[];
+  topCampaigns: CampaignData[];
 }
 
 function SkeletonBlock({ className }: { className?: string }) {
@@ -61,9 +70,15 @@ export default function DashboardPage() {
     const params = new URLSearchParams();
     if (selectedAccountId) params.set("accountId", selectedAccountId);
     fetch(`/api/metrics/dashboard?${params}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((d) => setData(d))
-      .catch(() => {})
+      .catch((err) => {
+        console.error("Dashboard fetch error:", err);
+        setData(null);
+      })
       .finally(() => setLoading(false));
   }, [selectedAccountId]);
 
@@ -119,7 +134,7 @@ export default function DashboardPage() {
           </>
         ) : (
           <>
-            <TopCampaigns />
+            <TopCampaigns campaigns={data?.topCampaigns} />
             <AlertsWidget />
           </>
         )}

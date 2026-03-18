@@ -240,15 +240,15 @@ function IntegrationsContent() {
       const data = await res.json();
       if (res.ok) {
         setMetaAccounts(data);
-        toast(`${data.saved || 0} cuentas guardadas de ${data.total}`, "success");
-        // Reload accounts list so the global selector updates
-        const acctRes = await fetch("/api/platforms/accounts");
-        const acctData = await acctRes.json();
-        setAccounts(Array.isArray(acctData) ? acctData : []);
+        toast(`${data.total} cuentas descubiertas`, "success");
       }
       else toast(data.error || "Error", "error");
     } catch { toast("Error al cargar cuentas", "error"); }
     finally { setLoadingMeta(false); }
+  }
+
+  function goToSelectAccounts() {
+    window.location.href = "/app/integrations/select-accounts";
   }
 
   async function loadAds(accountId: string) {
@@ -329,20 +329,45 @@ function IntegrationsContent() {
 
                     {p.id === "meta" && (
                       <div className="border-t border-border-dim pt-3 space-y-3">
+                        {/* Show count of connected Meta ad accounts */}
+                        {(() => {
+                          const metaConnected = accounts.filter(
+                            (a) => a.platform === "meta" && a.is_active && a.platform_account_id !== "default"
+                          );
+                          return metaConnected.length > 0 ? (
+                            <p className="text-xs text-text-muted">
+                              {metaConnected.length} cuenta{metaConnected.length !== 1 ? "s" : ""} publicitaria{metaConnected.length !== 1 ? "s" : ""} conectada{metaConnected.length !== 1 ? "s" : ""}
+                            </p>
+                          ) : (
+                            <p className="text-xs text-text-dim">
+                              No hay cuentas publicitarias seleccionadas
+                            </p>
+                          );
+                        })()}
+
                         <Button
                           variant="secondary"
+                          size="sm"
+                          className="w-full"
+                          onClick={goToSelectAccounts}
+                        >
+                          Administrar cuentas publicitarias
+                        </Button>
+
+                        <Button
+                          variant="ghost"
                           size="sm"
                           className="w-full"
                           onClick={loadMetaAccounts}
                           disabled={loadingMeta}
                         >
-                          {loadingMeta ? "Cargando..." : metaAccounts ? "Actualizar cuentas" : "Ver Business Managers y Cuentas"}
+                          {loadingMeta ? "Cargando..." : "Ver detalle de Business Managers"}
                         </Button>
 
                         {metaAccounts && (
                           <div className="space-y-2">
                             <p className="text-xs font-semibold text-text-secondary">
-                              {metaAccounts.business_managers.length} BM · {metaAccounts.total} cuentas publicitarias
+                              {metaAccounts.business_managers.length} BM · {metaAccounts.total} cuentas publicitarias disponibles
                             </p>
 
                             {metaAccounts.business_managers.map(bm => {
@@ -350,7 +375,8 @@ function IntegrationsContent() {
                               if (bmAccounts.length === 0) return null;
                               return (
                                 <div key={bm.id} className="bg-bg-secondary rounded-lg p-2 space-y-1">
-                                  <p className="text-xs font-semibold text-text-primary">🏢 {bm.name}</p>
+                                  <p className="text-xs font-semibold text-text-primary">{bm.name}</p>
+                                  <p className="text-[10px] text-text-dim">{bmAccounts.length} cuentas</p>
                                   {bmAccounts.map(acct => (
                                     <AdAccountRow
                                       key={acct.id}
@@ -377,7 +403,7 @@ function IntegrationsContent() {
                               if (personalAccounts.length === 0) return null;
                               return (
                                 <div className="bg-bg-secondary rounded-lg p-2 space-y-1">
-                                  <p className="text-xs font-semibold text-text-primary">👤 Cuentas personales</p>
+                                  <p className="text-xs font-semibold text-text-primary">Cuentas personales</p>
                                   {personalAccounts.map(acct => (
                                     <AdAccountRow
                                       key={acct.id}

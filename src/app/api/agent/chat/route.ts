@@ -71,7 +71,7 @@ function messagesToGeminiContents(messages: ChatMessage[]): Content[] {
 // ---------- Route ----------
 
 export async function POST(request: NextRequest) {
-  let body: { messages: ChatMessage[] };
+  let body: { messages: ChatMessage[]; accountId?: string | null };
   try {
     body = await request.json();
   } catch {
@@ -148,7 +148,8 @@ export async function POST(request: NextRequest) {
 
             const result = await executeTool(
               fnCall.name!,
-              (fnCall.args as Record<string, unknown>) || {}
+              (fnCall.args as Record<string, unknown>) || {},
+              body.accountId || null
             );
 
             functionResponses.push({

@@ -122,28 +122,42 @@ export const agentTools: ToolSchema[] = [
 
 export async function executeTool(
   name: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  accountId?: string | null
 ): Promise<string> {
   switch (name) {
     case "get_campaign_metrics":
-      return executeGetCampaignMetrics(args);
+      return executeGetCampaignMetrics(args, accountId);
     case "list_active_campaigns":
-      return executeListActiveCampaigns();
+      return executeListActiveCampaigns(accountId);
     case "get_spend_summary":
-      return executeGetSpendSummary(args);
+      return executeGetSpendSummary(args, accountId);
     case "compare_platforms":
-      return executeComparePlatforms(args);
+      return executeComparePlatforms(args, accountId);
     case "generate_ad_copy":
       return executeGenerateAdCopy(args);
     case "get_recommendations":
-      return executeGetRecommendations(args);
+      return executeGetRecommendations(args, accountId);
     default:
       return JSON.stringify({ error: `Herramienta desconocida: ${name}` });
   }
 }
 
+async function getCampaignMappingIds(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  accountId?: string | null
+): Promise<string[] | null> {
+  if (!accountId) return null;
+  const { data } = await supabase
+    .from("campaign_mappings")
+    .select("id")
+    .eq("connected_account_id", accountId);
+  return data?.map((r) => r.id as string) ?? [];
+}
+
 async function executeGetCampaignMetrics(
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  accountId?: string | null
 ): Promise<string> {
   const supabase = await createClient();
   let query = supabase
@@ -151,6 +165,14 @@ async function executeGetCampaignMetrics(
     .select("*")
     .eq("platform", args.platform)
     .eq("campaign_id", args.campaign_id);
+
+  if (accountId) {
+    const ids = await getCampaignMappingIds(supabase, accountId);
+    if (ids && ids.length === 0) {
+      return JSON.stringify({ message: "No se encontraron metricas para esta campana en la cuenta seleccionada" });
+    }
+    if (ids) query = query.in("campaign_mapping_id", ids);
+  }
 
   if (args.start_date) {
     query = query.gte("date", args.start_date);
@@ -168,12 +190,19 @@ async function executeGetCampaignMetrics(
   return JSON.stringify(data);
 }
 
-async function executeListActiveCampaigns(): Promise<string> {
+async function executeListActiveCampaigns(
+  accountId?: string | null
+): Promise<string> {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("campaign_mappings")
-    .select("*")
-    .order("created_at", { ascending: false });
+    .select("*");
+
+  if (accountId) {
+    query = query.eq("connected_account_id", accountId);
+  }
+
+  const { data, error } = await query.order("created_at", { ascending: false });
 
   if (error) return JSON.stringify({ error: error.message });
   if (!data || data.length === 0) {
@@ -183,14 +212,25 @@ async function executeListActiveCampaigns(): Promise<string> {
 }
 
 async function executeGetSpendSummary(
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  accountId?: string | null
 ): Promise<string> {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("campaign_metrics")
-    .select("platform, spend, impressions, clicks, conversions")
+    .select("platform, spend, impressions, clicks, conversions, campaign_mapping_id")
     .gte("date", args.start_date)
     .lte("date", args.end_date);
+
+  if (accountId) {
+    const ids = await getCampaignMappingIds(supabase, accountId);
+    if (ids && ids.length === 0) {
+      return JSON.stringify({ message: "No hay datos de gasto en ese periodo para la cuenta seleccionada" });
+    }
+    if (ids) query = query.in("campaign_mapping_id", ids);
+  }
+
+  const { data, error } = await query;
 
   if (error) return JSON.stringify({ error: error.message });
   if (!data || data.length === 0) {
@@ -217,14 +257,25 @@ async function executeGetSpendSummary(
 }
 
 async function executeComparePlatforms(
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  accountId?: string | null
 ): Promise<string> {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("campaign_metrics")
-    .select("platform, spend, impressions, clicks, conversions, revenue")
+    .select("platform, spend, impressions, clicks, conversions, revenue, campaign_mapping_id")
     .gte("date", args.start_date)
     .lte("date", args.end_date);
+
+  if (accountId) {
+    const ids = await getCampaignMappingIds(supabase, accountId);
+    if (ids && ids.length === 0) {
+      return JSON.stringify({ message: "No hay datos para comparar en ese periodo para la cuenta seleccionada" });
+    }
+    if (ids) query = query.in("campaign_mapping_id", ids);
+  }
+
+  const { data, error } = await query;
 
   if (error) return JSON.stringify({ error: error.message });
   if (!data || data.length === 0) {
@@ -287,13 +338,24 @@ Incluye headline, texto principal, CTA y hook.`;
 }
 
 async function executeGetRecommendations(
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  accountId?: string | null
 ): Promise<string> {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("campaign_metrics")
     .select("*")
-    .eq("campaign_id", args.campaign_id)
+    .eq("campaign_id", args.campaign_id);
+
+  if (accountId) {
+    const ids = await getCampaignMappingIds(supabase, accountId);
+    if (ids && ids.length === 0) {
+      return JSON.stringify({ message: "No se encontraron metricas para generar recomendaciones en la cuenta seleccionada" });
+    }
+    if (ids) query = query.in("campaign_mapping_id", ids);
+  }
+
+  const { data, error } = await query
     .order("date", { ascending: false })
     .limit(30);
 

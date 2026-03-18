@@ -23,7 +23,7 @@ function generateId(): string {
   return `msg_${Date.now()}_${++messageIdCounter}`;
 }
 
-export function useAgentChat(): UseAgentChatReturn {
+export function useAgentChat(accountId?: string | null): UseAgentChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +64,7 @@ export function useAgentChat(): UseAgentChatReturn {
       const res = await fetch("/api/agent/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history }),
+        body: JSON.stringify({ messages: history, accountId: accountId || null }),
         signal: abortRef.current.signal,
       });
 

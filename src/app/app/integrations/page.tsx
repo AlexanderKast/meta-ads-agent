@@ -149,7 +149,7 @@ function IntegrationsContent() {
     if (saveData) {
       // Save the account from OAuth callback
       try {
-        const data = JSON.parse(Buffer.from(saveData, "base64url").toString());
+        const data = JSON.parse(atob(saveData.replace(/-/g, "+").replace(/_/g, "/")));
         fetch("/api/platforms/save", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

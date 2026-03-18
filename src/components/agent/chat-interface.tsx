@@ -6,6 +6,10 @@ import { useAgentChat } from "@/hooks/use-agent-chat";
 import { useAccount } from "@/contexts/account-context";
 import { MessageBubble } from "@/components/agent/message-bubble";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { SendIcon as LucideSendIcon, Trash2Icon } from "lucide-react";
 
 function TypingIndicator() {
   return (
@@ -79,9 +83,9 @@ export function ChatInterface() {
   return (
     <div className="flex flex-col h-full">
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto px-4 py-6">
+      <ScrollArea className="flex-1 px-4 py-6">
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center">
+          <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center mb-4">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -102,11 +106,14 @@ export function ChatInterface() {
             <p className="text-text-muted text-sm max-w-md">
               Preguntame sobre tus campanas...
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-6 max-w-lg">
+
+            <Separator className="my-6 max-w-xs" />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 max-w-lg">
               {[
-                "¿Como van mis campanas de Meta esta semana?",
+                "Como van mis campanas de Meta esta semana?",
                 "Compara el rendimiento entre plataformas",
-                "¿Que campanas tienen CPC mas alto?",
+                "Que campanas tienen CPC mas alto?",
                 "Genera copy para una campana de Google Ads",
               ].map((suggestion) => (
                 <button
@@ -115,7 +122,7 @@ export function ChatInterface() {
                     setInput(suggestion);
                     textareaRef.current?.focus();
                   }}
-                  className="text-left text-xs text-text-muted bg-surface border border-border rounded-xl px-3 py-2 hover:border-border-hover hover:text-text-secondary transition-all"
+                  className="text-left text-xs text-text-muted bg-surface border border-border rounded-xl px-3 py-2.5 hover:border-primary/50 hover:text-text-secondary hover:bg-surface-hover transition-all"
                 >
                   {suggestion}
                 </button>
@@ -140,18 +147,23 @@ export function ChatInterface() {
         )}
 
         <div ref={messagesEndRef} />
-      </div>
+      </ScrollArea>
 
       {/* Input bar */}
       <div className="border-t border-border bg-background/80 backdrop-blur-sm px-4 py-3">
         {messages.length > 0 && (
           <div className="flex justify-end mb-2">
-            <button
-              onClick={clearMessages}
-              className="text-[11px] text-text-dim hover:text-text-muted transition-colors"
-            >
-              Limpiar chat
-            </button>
+            <Tooltip>
+              <TooltipTrigger
+                onClick={clearMessages}
+                className="text-text-dim hover:text-text-muted transition-colors p-1 rounded-md hover:bg-surface"
+              >
+                <Trash2Icon className="w-3.5 h-3.5" />
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                <p>Limpiar chat</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
         )}
         <div className="flex items-end gap-3">
@@ -171,7 +183,7 @@ export function ChatInterface() {
           <Button
             onClick={handleSend}
             disabled={!input.trim() || isLoading}
-            size="md"
+            size="default"
             className="shrink-0 !px-3 !py-3 rounded-xl"
           >
             <SendIcon />

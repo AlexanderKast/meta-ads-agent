@@ -145,7 +145,7 @@ export function CreativeCard({
               {copied ? "Copiado!" : "Copiar"}
             </Button>
             {status !== "published" && onPublish && (
-              <Button size="sm" variant="primary" onClick={() => onPublish(id)}>
+              <Button size="sm" variant="default" onClick={() => onPublish(id)}>
                 Publicar
               </Button>
             )}

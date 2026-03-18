@@ -1,7 +1,9 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { InfoIcon } from "lucide-react";
 
 interface KPIData {
   spend: number;
@@ -48,13 +50,13 @@ function getDelta(current: number, previous: number | undefined): { value: strin
 }
 
 const kpiConfig = [
-  { key: "spend", prevKey: "prevSpend", label: "Spend", type: "currency" as const, invertDelta: true },
-  { key: "impressions", prevKey: "prevImpressions", label: "Impressions", type: "number" as const },
-  { key: "clicks", prevKey: "prevClicks", label: "Clicks", type: "number" as const },
-  { key: "ctr", prevKey: "prevCtr", label: "CTR", type: "percent" as const },
-  { key: "cpc", prevKey: "prevCpc", label: "CPC", type: "currency" as const, invertDelta: true },
-  { key: "conversions", prevKey: "prevConversions", label: "Conversions", type: "number" as const },
-  { key: "roas", prevKey: "prevRoas", label: "ROAS", type: "decimal" as const },
+  { key: "spend", prevKey: "prevSpend", label: "Spend", type: "currency" as const, invertDelta: true, tooltip: "Total invertido en anuncios en el periodo seleccionado" },
+  { key: "impressions", prevKey: "prevImpressions", label: "Impressions", type: "number" as const, tooltip: "Cantidad de veces que se mostraron tus anuncios" },
+  { key: "clicks", prevKey: "prevClicks", label: "Clicks", type: "number" as const, tooltip: "Numero total de clics en tus anuncios" },
+  { key: "ctr", prevKey: "prevCtr", label: "CTR", type: "percent" as const, tooltip: "Click-Through Rate: porcentaje de impresiones que generaron clic" },
+  { key: "cpc", prevKey: "prevCpc", label: "CPC", type: "currency" as const, invertDelta: true, tooltip: "Cost Per Click: costo promedio por cada clic" },
+  { key: "conversions", prevKey: "prevConversions", label: "Conversions", type: "number" as const, tooltip: "Acciones completadas (compras, registros, etc.)" },
+  { key: "roas", prevKey: "prevRoas", label: "ROAS", type: "decimal" as const, tooltip: "Return On Ad Spend: ingresos generados por cada dolar invertido" },
 ];
 
 export function KPICards({ data, className }: KPICardsProps) {
@@ -67,16 +69,27 @@ export function KPICards({ data, className }: KPICardsProps) {
         const isPositive = delta ? (kpi.invertDelta ? !delta.positive : delta.positive) : true;
 
         return (
-          <Card key={kpi.key} variant="bordered" className="space-y-1 p-4">
-            <span className="text-xs text-text-dim">{kpi.label}</span>
+          <Card key={kpi.key} variant="bordered" className="space-y-1 p-4 group">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-text-dim">{kpi.label}</span>
+              <Tooltip>
+                <TooltipTrigger className="text-text-dim opacity-0 group-hover:opacity-100 transition-opacity">
+                  <InfoIcon className="w-3 h-3" />
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>{kpi.tooltip}</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
             <p className="text-xl font-bold text-text-primary">{formatValue(value, kpi.type)}</p>
             {delta && (
               <span
                 className={cn(
-                  "text-xs font-medium",
+                  "text-xs font-medium inline-flex items-center gap-1",
                   isPositive ? "text-success" : "text-error"
                 )}
               >
+                <span>{isPositive ? "\u2191" : "\u2193"}</span>
                 {delta.value}
               </span>
             )}

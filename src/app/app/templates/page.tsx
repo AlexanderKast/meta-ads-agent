@@ -79,7 +79,7 @@ export default function TemplatesPage() {
     <div className="max-w-4xl space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-text-primary">Templates</h1>
-        <Button variant="primary" size="sm" onClick={() => setShowForm(!showForm)}>
+        <Button variant="default" size="sm" onClick={() => setShowForm(!showForm)}>
           {showForm ? "Cancelar" : "+ Nuevo template"}
         </Button>
       </div>

@@ -2,6 +2,14 @@
 
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
 interface Campaign {
@@ -39,50 +47,48 @@ export function TopCampaigns({ campaigns = [], className }: TopCampaignsProps) {
       {campaigns.length === 0 ? (
         <p className="text-xs text-text-dim py-2">No campaign data</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-border text-text-dim">
-                <th className="text-left py-2 font-medium">Campaign</th>
-                <th className="text-left py-2 font-medium">Platform</th>
-                <th className="text-right py-2 font-medium">Spend</th>
-                <th className="text-right py-2 font-medium">ROAS</th>
-                <th className="text-right py-2 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {campaigns.slice(0, 5).map((campaign, i) => {
-                const platformKey = campaign.platform.toLowerCase();
-                return (
-                  <tr key={i} className="border-b border-border/50">
-                    <td className="py-2 text-text-secondary">{campaign.name}</td>
-                    <td className="py-2">
-                      <span
-                        className={cn(
-                          "inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold",
-                          platformColors[platformKey] || "bg-surface text-text-dim"
-                        )}
-                      >
-                        {platformIcons[platformKey] || "?"}
-                      </span>
-                    </td>
-                    <td className="py-2 text-right text-text-secondary">
-                      ${campaign.spend.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="py-2 text-right font-medium text-primary">
-                      {campaign.roas.toFixed(2)}x
-                    </td>
-                    <td className="py-2 text-right">
-                      <Badge variant={campaign.status === "active" ? "success" : "default"}>
-                        {campaign.status || "active"}
-                      </Badge>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <Table>
+          <TableHeader>
+            <TableRow className="border-border hover:bg-transparent">
+              <TableHead className="text-text-dim text-xs font-medium h-8">Campaign</TableHead>
+              <TableHead className="text-text-dim text-xs font-medium h-8">Platform</TableHead>
+              <TableHead className="text-text-dim text-xs font-medium h-8 text-right">Spend</TableHead>
+              <TableHead className="text-text-dim text-xs font-medium h-8 text-right">ROAS</TableHead>
+              <TableHead className="text-text-dim text-xs font-medium h-8 text-right">Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {campaigns.slice(0, 5).map((campaign, i) => {
+              const platformKey = campaign.platform.toLowerCase();
+              return (
+                <TableRow key={i} className="border-border/50 hover:bg-surface-hover/50">
+                  <TableCell className="text-text-secondary text-xs py-2.5">{campaign.name}</TableCell>
+                  <TableCell className="py-2.5">
+                    <span
+                      className={cn(
+                        "inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold",
+                        platformColors[platformKey] || "bg-surface text-text-dim"
+                      )}
+                    >
+                      {platformIcons[platformKey] || "?"}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right text-text-secondary text-xs py-2.5">
+                    ${campaign.spend.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </TableCell>
+                  <TableCell className="text-right font-medium text-primary text-xs py-2.5">
+                    {campaign.roas.toFixed(2)}x
+                  </TableCell>
+                  <TableCell className="text-right py-2.5">
+                    <Badge variant={campaign.status === "active" ? "success" : "default"}>
+                      {campaign.status || "active"}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
       )}
     </Card>
   );

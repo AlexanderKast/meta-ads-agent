@@ -1,49 +1,36 @@
-import { forwardRef, type TextareaHTMLAttributes } from "react";
-import { cn } from "@/lib/utils";
+import * as React from "react"
 
-interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
-  label?: string;
-  error?: string;
-  charCount?: { current: number; max: number };
-}
+import { cn } from "@/lib/utils"
 
-export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
-  ({ label, error, charCount, className, id, ...props }, ref) => {
-    const inputId = id || label?.toLowerCase().replace(/\s+/g, "-");
+function Textarea({ className, label, charCount, ...props }: React.ComponentProps<"textarea"> & { label?: string; charCount?: { current: number; max: number } }) {
+  const textarea = (
+    <textarea
+      data-slot="textarea"
+      className={cn(
+        "flex field-sizing-content min-h-16 w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
+        className
+      )}
+      {...props}
+    />
+  )
 
+  if (label || charCount) {
     return (
-      <div>
-        {label && (
-          <label htmlFor={inputId} className="block text-sm font-medium text-text-secondary mb-2">
-            {label}
-          </label>
-        )}
-        <textarea
-          ref={ref}
-          id={inputId}
-          className={cn(
-            "w-full bg-surface border border-border rounded-xl px-4 py-3 text-text-primary placeholder-text-dim focus:outline-none focus:border-primary text-sm resize-none",
-            error && "border-error focus:border-error",
-            className
-          )}
-          {...props}
-        />
-        <div className="flex justify-between mt-1">
-          {error && <span className="text-xs text-error">{error}</span>}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          {label && <label className="text-sm font-medium text-foreground">{label}</label>}
           {charCount && (
-            <span
-              className={cn(
-                "text-xs ml-auto",
-                charCount.current > charCount.max ? "text-error" : "text-text-dim"
-              )}
-            >
+            <span className={cn("text-xs", charCount.current > charCount.max ? "text-destructive" : "text-muted-foreground")}>
               {charCount.current}/{charCount.max}
             </span>
           )}
         </div>
+        {textarea}
       </div>
-    );
+    )
   }
-);
 
-Textarea.displayName = "Textarea";
+  return textarea
+}
+
+export { Textarea }

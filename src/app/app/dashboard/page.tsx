@@ -7,7 +7,10 @@ import { PieChartComponent } from "@/components/charts/pie-chart";
 import { TopCampaigns } from "@/components/dashboard/top-campaigns";
 import { AlertsWidget } from "@/components/dashboard/alerts-widget";
 import { useAccount } from "@/contexts/account-context";
-import { cn } from "@/lib/utils";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
+import { Card } from "@/components/ui/card";
 
 interface KPIData {
   spend: number;
@@ -54,21 +57,57 @@ interface DashboardData {
   topCampaigns: CampaignData[];
 }
 
-function SkeletonBlock({ className }: { className?: string }) {
+function KPISkeleton() {
   return (
-    <div className={cn("animate-pulse rounded-xl bg-surface border border-border", className)} />
+    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+      {Array.from({ length: 7 }).map((_, i) => (
+        <Card key={i} variant="bordered" className="space-y-2 p-4">
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-7 w-24" />
+          <Skeleton className="h-3 w-12" />
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function ChartSkeleton({ className }: { className?: string }) {
+  return (
+    <Card variant="bordered" className={className}>
+      <Skeleton className="h-4 w-32 mb-4" />
+      <Skeleton className="h-64 w-full rounded-lg" />
+    </Card>
+  );
+}
+
+function BottomSkeleton() {
+  return (
+    <Card variant="bordered">
+      <Skeleton className="h-4 w-40 mb-4" />
+      <div className="space-y-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-3">
+            <Skeleton className="h-6 w-6 rounded-full" />
+            <Skeleton className="h-4 flex-1" />
+            <Skeleton className="h-4 w-16" />
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState("7d");
   const { selectedAccountId } = useAccount();
 
   useEffect(() => {
     setLoading(true);
     const params = new URLSearchParams();
     if (selectedAccountId) params.set("accountId", selectedAccountId);
+    params.set("period", period);
     fetch(`/api/metrics/dashboard?${params}`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -80,19 +119,30 @@ export default function DashboardPage() {
         setData(null);
       })
       .finally(() => setLoading(false));
-  }, [selectedAccountId]);
+  }, [selectedAccountId, period]);
 
   return (
     <div className="max-w-7xl space-y-6">
-      <h1 className="text-2xl font-bold text-text-primary">Dashboard</h1>
+      {/* Header with period tabs */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-text-primary">Dashboard</h1>
+          <p className="text-sm text-text-muted mt-0.5">Vista general del rendimiento de tus campanas</p>
+        </div>
+        <Tabs defaultValue="7d" onValueChange={(v) => setPeriod(v as string)}>
+          <TabsList>
+            <TabsTrigger value="7d">7 dias</TabsTrigger>
+            <TabsTrigger value="30d">30 dias</TabsTrigger>
+            <TabsTrigger value="90d">90 dias</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+
+      <Separator />
 
       {/* KPI Cards */}
       {loading || !data ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-          {Array.from({ length: 7 }).map((_, i) => (
-            <SkeletonBlock key={i} className="h-24 p-4" />
-          ))}
-        </div>
+        <KPISkeleton />
       ) : (
         <KPICards data={data.kpis} />
       )}
@@ -101,13 +151,13 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {loading || !data ? (
           <>
-            <SkeletonBlock className="lg:col-span-2 h-80" />
-            <SkeletonBlock className="h-80" />
+            <ChartSkeleton className="lg:col-span-2" />
+            <ChartSkeleton />
           </>
         ) : (
           <>
-            <div className="lg:col-span-2">
-              <h2 className="text-sm font-semibold text-text-primary mb-2">Spend Over Time</h2>
+            <Card variant="bordered" className="lg:col-span-2">
+              <h2 className="text-sm font-semibold text-text-primary mb-3">Gasto a lo largo del tiempo</h2>
               <LineChartComponent
                 data={data.daily}
                 dataKeys={[
@@ -116,21 +166,23 @@ export default function DashboardPage() {
                 ]}
                 xAxisKey="date"
               />
-            </div>
-            <div>
-              <h2 className="text-sm font-semibold text-text-primary mb-2">Spend by Platform</h2>
+            </Card>
+            <Card variant="bordered">
+              <h2 className="text-sm font-semibold text-text-primary mb-3">Gasto por plataforma</h2>
               <PieChartComponent data={data.byPlatform} />
-            </div>
+            </Card>
           </>
         )}
       </div>
+
+      <Separator />
 
       {/* Bottom row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {loading ? (
           <>
-            <SkeletonBlock className="h-72" />
-            <SkeletonBlock className="h-72" />
+            <BottomSkeleton />
+            <BottomSkeleton />
           </>
         ) : (
           <>

@@ -5,6 +5,19 @@ import { useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogTrigger,
+  DialogClose,
+} from "@/components/ui/dialog";
 import { toast, ToastContainer } from "@/components/ui/toast";
 
 interface ConnectedAccount {
@@ -52,17 +65,43 @@ interface MetaAdsData {
 }
 
 const PLATFORMS = [
-  { id: "meta", name: "Meta Ads", icon: "📘", description: "Facebook + Instagram", color: "from-blue-600 to-blue-400" },
-  { id: "google", name: "Google Ads", icon: "🔍", description: "Search + Display + YouTube", color: "from-green-600 to-yellow-400" },
-  { id: "tiktok", name: "TikTok Ads", icon: "🎵", description: "In-Feed + Spark + TopView", color: "from-pink-600 to-red-400" },
-  { id: "linkedin", name: "LinkedIn Ads", icon: "💼", description: "Sponsored Content + InMail", color: "from-blue-700 to-blue-500" },
+  { id: "meta", name: "Meta Ads", icon: "\u{1F4D8}", description: "Facebook + Instagram", color: "from-blue-600 to-blue-400" },
+  { id: "google", name: "Google Ads", icon: "\u{1F50D}", description: "Search + Display + YouTube", color: "from-green-600 to-yellow-400" },
+  { id: "tiktok", name: "TikTok Ads", icon: "\u{1F3B5}", description: "In-Feed + Spark + TopView", color: "from-pink-600 to-red-400" },
+  { id: "linkedin", name: "LinkedIn Ads", icon: "\u{1F4BC}", description: "Sponsored Content + InMail", color: "from-blue-700 to-blue-500" },
 ];
 
 export default function IntegrationsPage() {
   return (
-    <Suspense fallback={<div className="text-text-dim">Cargando...</div>}>
+    <Suspense fallback={<IntegrationsSkeleton />}>
       <IntegrationsContent />
     </Suspense>
+  );
+}
+
+function IntegrationsSkeleton() {
+  return (
+    <div className="max-w-4xl space-y-6">
+      <div>
+        <Skeleton className="h-8 w-48 mb-2" />
+        <Skeleton className="h-4 w-96" />
+      </div>
+      <Skeleton className="h-9 w-64" />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Card key={i} variant="bordered" className="space-y-4">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-12 w-12 rounded-xl" />
+              <div className="space-y-1.5">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-3 w-36" />
+              </div>
+            </div>
+            <Skeleton className="h-9 w-full rounded-md" />
+          </Card>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -88,35 +127,41 @@ function AdAccountRow({ account, expanded, onToggle, ads, loadingAds }: {
     <div className="space-y-1">
       <button
         onClick={onToggle}
-        className="w-full flex items-center justify-between text-left p-1.5 rounded hover:bg-bg-tertiary transition-colors"
+        className="w-full flex items-center justify-between text-left p-1.5 rounded hover:bg-muted/50 transition-colors"
       >
         <div className="flex-1 min-w-0">
           <p className="text-xs font-medium text-text-secondary truncate">{account.name}</p>
-          <p className="text-[10px] text-text-dim">{account.id} · {account.currency} · {STATUS_LABELS[account.account_status] || "Desconocido"}</p>
+          <p className="text-[10px] text-text-dim">{account.id} {"\u00B7"} {account.currency} {"\u00B7"} {STATUS_LABELS[account.account_status] || "Desconocido"}</p>
         </div>
-        <span className="text-text-dim text-xs ml-2">{expanded ? "▼" : "▶"}</span>
+        <span className="text-text-dim text-xs ml-2">{expanded ? "\u25BC" : "\u25B6"}</span>
       </button>
 
       {expanded && (
         <div className="pl-3 space-y-1">
           {loadingAds ? (
-            <p className="text-[10px] text-text-dim">Cargando anuncios...</p>
+            <div className="space-y-1 py-1">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-3 w-full" />
+              <Skeleton className="h-3 w-full" />
+            </div>
           ) : ads ? (
             ads.total === 0 ? (
               <p className="text-[10px] text-text-dim">Sin anuncios en esta cuenta</p>
             ) : (
               <div className="space-y-0.5">
                 <p className="text-[10px] text-text-muted font-semibold">{ads.total} anuncios</p>
-                {ads.ads.slice(0, 20).map(ad => (
-                  <div key={ad.id} className="flex items-center gap-2 p-1 rounded text-[10px]">
-                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                      ad.status === "active" ? "bg-green-500" :
-                      ad.status === "paused" ? "bg-yellow-500" : "bg-red-500"
-                    }`} />
-                    <span className="text-text-secondary truncate flex-1">{ad.name}</span>
-                    <span className="text-text-dim truncate">{ad.campaign_name}</span>
-                  </div>
-                ))}
+                <ScrollArea className="max-h-48">
+                  {ads.ads.slice(0, 20).map(ad => (
+                    <div key={ad.id} className="flex items-center gap-2 p-1 rounded text-[10px]">
+                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                        ad.status === "active" ? "bg-green-500" :
+                        ad.status === "paused" ? "bg-yellow-500" : "bg-red-500"
+                      }`} />
+                      <span className="text-text-secondary truncate flex-1">{ad.name}</span>
+                      <span className="text-text-dim truncate">{ad.campaign_name}</span>
+                    </div>
+                  ))}
+                </ScrollArea>
                 {ads.total > 20 && (
                   <p className="text-[10px] text-text-dim">...y {ads.total - 20} mas</p>
                 )}
@@ -139,6 +184,7 @@ function IntegrationsContent() {
   const [expandedAccount, setExpandedAccount] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<any>(null);
+  const [disconnectTarget, setDisconnectTarget] = useState<string | null>(null);
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -147,7 +193,6 @@ function IntegrationsContent() {
     const error = searchParams.get("error");
 
     if (saveData) {
-      // Save the account from OAuth callback
       try {
         const data = JSON.parse(atob(saveData.replace(/-/g, "+").replace(/_/g, "/")));
         fetch("/api/platforms/save", {
@@ -159,7 +204,6 @@ function IntegrationsContent() {
           .then((result) => {
             if (result.success) {
               toast(`${data.platform} conectado exitosamente`, "success");
-              // Reload accounts
               fetch("/api/platforms/accounts")
                 .then((r) => r.json())
                 .then((d) => setAccounts(Array.isArray(d) ? d : []));
@@ -171,7 +215,6 @@ function IntegrationsContent() {
       } catch {
         toast("Error al procesar datos", "error");
       }
-      // Clean URL
       window.history.replaceState({}, "", "/app/integrations");
     } else if (success) {
       toast(`${success} conectado exitosamente`, "success");
@@ -203,6 +246,7 @@ function IntegrationsContent() {
       body: JSON.stringify({ platform: platformId }),
     });
     setAccounts((prev) => prev.filter((a) => a.platform !== platformId));
+    setDisconnectTarget(null);
     toast("Plataforma desconectada", "info");
   }
 
@@ -222,12 +266,12 @@ function IntegrationsContent() {
       const data = await res.json();
       setSyncResult(data);
       if (res.ok) {
-        toast(`Sincronizado: ${data.campaigns_discovered} campañas descubiertas, ${data.metrics_synced} métricas`, "success");
+        toast(`Sincronizado: ${data.campaigns_discovered} campanas descubiertas, ${data.metrics_synced} metricas`, "success");
       } else {
         toast(data.error || "Error al sincronizar", "error");
       }
     } catch {
-      toast("Error de conexión", "error");
+      toast("Error de conexion", "error");
     } finally {
       setSyncing(false);
     }
@@ -278,17 +322,32 @@ function IntegrationsContent() {
           onClick={() => handleSync()}
           disabled={syncing || accounts.length === 0}
         >
-          {syncing ? "Sincronizando..." : "🔄 Sincronizar Todas las Métricas"}
+          {syncing ? "Sincronizando..." : "Sincronizar Todas las Metricas"}
         </Button>
         {syncResult && (
           <span className="text-xs text-text-muted">
-            {syncResult.campaigns_discovered} campañas · {syncResult.metrics_synced} métricas · {syncResult.errors?.length || 0} errores
+            {syncResult.campaigns_discovered} campanas {"\u00B7"} {syncResult.metrics_synced} metricas {"\u00B7"} {syncResult.errors?.length || 0} errores
           </span>
         )}
       </div>
 
+      <Separator />
+
       {loading ? (
-        <p className="text-text-dim text-sm">Cargando...</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} variant="bordered" className="space-y-4">
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-12 w-12 rounded-xl" />
+                <div className="space-y-1.5">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-3 w-36" />
+                </div>
+              </div>
+              <Skeleton className="h-9 w-full rounded-md" />
+            </Card>
+          ))}
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {PLATFORMS.map((p) => {
@@ -319,114 +378,139 @@ function IntegrationsContent() {
                       Conectado: {new Date(account.created_at).toLocaleDateString()}
                     </p>
                     <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => handleDisconnect(p.id)}>
-                        Desconectar
-                      </Button>
+                      <Dialog open={disconnectTarget === p.id} onOpenChange={(open) => !open && setDisconnectTarget(null)}>
+                        <DialogTrigger render={
+                          <Button variant="ghost" size="sm" onClick={() => setDisconnectTarget(p.id)} />
+                        }>
+                          Desconectar
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Desconectar {p.name}</DialogTitle>
+                            <DialogDescription>
+                              Estas seguro que quieres desconectar tu cuenta de {p.name}? Perderas acceso a las metricas y no podras publicar campanas hasta reconectar.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <DialogFooter>
+                            <DialogClose render={<Button variant="outline" />}>
+                              Cancelar
+                            </DialogClose>
+                            <Button
+                              variant="destructive"
+                              onClick={() => handleDisconnect(p.id)}
+                            >
+                              Si, desconectar
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
                       <Button variant="secondary" size="sm" onClick={() => handleSync(p.id)} disabled={syncing}>
                         {syncing ? "..." : "Sincronizar"}
                       </Button>
                     </div>
 
                     {p.id === "meta" && (
-                      <div className="border-t border-border-dim pt-3 space-y-3">
-                        {/* Show count of connected Meta ad accounts */}
-                        {(() => {
-                          const metaConnected = accounts.filter(
-                            (a) => a.platform === "meta" && a.is_active && a.platform_account_id !== "default"
-                          );
-                          return metaConnected.length > 0 ? (
-                            <p className="text-xs text-text-muted">
-                              {metaConnected.length} cuenta{metaConnected.length !== 1 ? "s" : ""} publicitaria{metaConnected.length !== 1 ? "s" : ""} conectada{metaConnected.length !== 1 ? "s" : ""}
-                            </p>
-                          ) : (
-                            <p className="text-xs text-text-dim">
-                              No hay cuentas publicitarias seleccionadas
-                            </p>
-                          );
-                        })()}
+                      <>
+                        <Separator />
+                        <div className="space-y-3">
+                          {(() => {
+                            const metaConnected = accounts.filter(
+                              (a) => a.platform === "meta" && a.is_active && a.platform_account_id !== "default"
+                            );
+                            return metaConnected.length > 0 ? (
+                              <p className="text-xs text-text-muted">
+                                {metaConnected.length} cuenta{metaConnected.length !== 1 ? "s" : ""} publicitaria{metaConnected.length !== 1 ? "s" : ""} conectada{metaConnected.length !== 1 ? "s" : ""}
+                              </p>
+                            ) : (
+                              <p className="text-xs text-text-dim">
+                                No hay cuentas publicitarias seleccionadas
+                              </p>
+                            );
+                          })()}
 
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className="w-full"
-                          onClick={goToSelectAccounts}
-                        >
-                          Administrar cuentas publicitarias
-                        </Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="w-full"
+                            onClick={goToSelectAccounts}
+                          >
+                            Administrar cuentas publicitarias
+                          </Button>
 
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="w-full"
-                          onClick={loadMetaAccounts}
-                          disabled={loadingMeta}
-                        >
-                          {loadingMeta ? "Cargando..." : "Ver detalle de Business Managers"}
-                        </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full"
+                            onClick={loadMetaAccounts}
+                            disabled={loadingMeta}
+                          >
+                            {loadingMeta ? "Cargando..." : "Ver detalle de Business Managers"}
+                          </Button>
 
-                        {metaAccounts && (
-                          <div className="space-y-2">
-                            <p className="text-xs font-semibold text-text-secondary">
-                              {metaAccounts.business_managers.length} BM · {metaAccounts.total} cuentas publicitarias disponibles
-                            </p>
+                          {metaAccounts && (
+                            <div className="space-y-2">
+                              <p className="text-xs font-semibold text-text-secondary">
+                                {metaAccounts.business_managers.length} BM {"\u00B7"} {metaAccounts.total} cuentas publicitarias disponibles
+                              </p>
 
-                            {metaAccounts.business_managers.map(bm => {
-                              const bmAccounts = metaAccounts.ad_accounts.filter(a => a.business_manager?.id === bm.id);
-                              if (bmAccounts.length === 0) return null;
-                              return (
-                                <div key={bm.id} className="bg-bg-secondary rounded-lg p-2 space-y-1">
-                                  <p className="text-xs font-semibold text-text-primary">{bm.name}</p>
-                                  <p className="text-[10px] text-text-dim">{bmAccounts.length} cuentas</p>
-                                  {bmAccounts.map(acct => (
-                                    <AdAccountRow
-                                      key={acct.id}
-                                      account={acct}
-                                      expanded={expandedAccount === acct.id}
-                                      onToggle={() => {
-                                        if (expandedAccount === acct.id) {
-                                          setExpandedAccount(null);
-                                        } else {
-                                          setExpandedAccount(acct.id);
-                                          if (!metaAds[acct.id]) loadAds(acct.id);
-                                        }
-                                      }}
-                                      ads={metaAds[acct.id]}
-                                      loadingAds={loadingAds === acct.id}
-                                    />
-                                  ))}
-                                </div>
-                              );
-                            })}
+                              {metaAccounts.business_managers.map(bm => {
+                                const bmAccounts = metaAccounts.ad_accounts.filter(a => a.business_manager?.id === bm.id);
+                                if (bmAccounts.length === 0) return null;
+                                return (
+                                  <div key={bm.id} className="bg-muted rounded-lg p-2 space-y-1">
+                                    <p className="text-xs font-semibold text-text-primary">{bm.name}</p>
+                                    <p className="text-[10px] text-text-dim">{bmAccounts.length} cuentas</p>
+                                    {bmAccounts.map(acct => (
+                                      <AdAccountRow
+                                        key={acct.id}
+                                        account={acct}
+                                        expanded={expandedAccount === acct.id}
+                                        onToggle={() => {
+                                          if (expandedAccount === acct.id) {
+                                            setExpandedAccount(null);
+                                          } else {
+                                            setExpandedAccount(acct.id);
+                                            if (!metaAds[acct.id]) loadAds(acct.id);
+                                          }
+                                        }}
+                                        ads={metaAds[acct.id]}
+                                        loadingAds={loadingAds === acct.id}
+                                      />
+                                    ))}
+                                  </div>
+                                );
+                              })}
 
-                            {(() => {
-                              const personalAccounts = metaAccounts.ad_accounts.filter(a => !a.business_manager);
-                              if (personalAccounts.length === 0) return null;
-                              return (
-                                <div className="bg-bg-secondary rounded-lg p-2 space-y-1">
-                                  <p className="text-xs font-semibold text-text-primary">Cuentas personales</p>
-                                  {personalAccounts.map(acct => (
-                                    <AdAccountRow
-                                      key={acct.id}
-                                      account={acct}
-                                      expanded={expandedAccount === acct.id}
-                                      onToggle={() => {
-                                        if (expandedAccount === acct.id) {
-                                          setExpandedAccount(null);
-                                        } else {
-                                          setExpandedAccount(acct.id);
-                                          if (!metaAds[acct.id]) loadAds(acct.id);
-                                        }
-                                      }}
-                                      ads={metaAds[acct.id]}
-                                      loadingAds={loadingAds === acct.id}
-                                    />
-                                  ))}
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        )}
-                      </div>
+                              {(() => {
+                                const personalAccounts = metaAccounts.ad_accounts.filter(a => !a.business_manager);
+                                if (personalAccounts.length === 0) return null;
+                                return (
+                                  <div className="bg-muted rounded-lg p-2 space-y-1">
+                                    <p className="text-xs font-semibold text-text-primary">Cuentas personales</p>
+                                    {personalAccounts.map(acct => (
+                                      <AdAccountRow
+                                        key={acct.id}
+                                        account={acct}
+                                        expanded={expandedAccount === acct.id}
+                                        onToggle={() => {
+                                          if (expandedAccount === acct.id) {
+                                            setExpandedAccount(null);
+                                          } else {
+                                            setExpandedAccount(acct.id);
+                                            if (!metaAds[acct.id]) loadAds(acct.id);
+                                          }
+                                        }}
+                                        ads={metaAds[acct.id]}
+                                        loadingAds={loadingAds === acct.id}
+                                      />
+                                    ))}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          )}
+                        </div>
+                      </>
                     )}
                   </div>
                 ) : (

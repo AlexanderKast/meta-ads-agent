@@ -300,7 +300,7 @@ const INSIGHT_FIELDS = [
   "frequency",
   "video_p25_watched_actions",
   "video_p50_watched_actions","video_p75_watched_actions","video_p100_watched_actions",
-  "video_play_actions","video_thruplay_actions",
+  "video_play_actions","video_30_sec_watched_actions",
   "outbound_clicks",
   "inline_link_clicks","inline_link_click_ctr","cost_per_inline_link_click",
   "engagement_rate_ranking","quality_ranking","conversion_rate_ranking",
@@ -386,7 +386,7 @@ function parseInsightRow(d: Record<string, unknown>) {
 
   // Video extended
   const videoPlays = extractVideoViews(d.video_play_actions as Array<{ action_type: string; value: string }> | undefined);
-  const videoThruplay = extractVideoViews(d.video_thruplay_actions as Array<{ action_type: string; value: string }> | undefined);
+  const videoThruplay = extractVideoViews(d.video_30_sec_watched_actions as Array<{ action_type: string; value: string }> | undefined);
   const videoComplete = extractVideoViews(d.video_p100_watched_actions as Array<{ action_type: string; value: string }> | undefined);
 
   const impressionsNum = Number(d.impressions) || 0;

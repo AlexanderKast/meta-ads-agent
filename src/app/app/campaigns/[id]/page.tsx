@@ -178,12 +178,21 @@ const PERIOD_OPTIONS = [
 ] as const;
 
 const CHART_COLORS: Record<string, string> = {
-  spend: "#f97316",
-  clicks: "#3b82f6",
-  conversions: "#22c55e",
-  revenue: "#ec4899",
-  impressions: "#eab308",
+  gasto: "#f97316",
+  clics: "#3b82f6",
+  conversiones: "#22c55e",
+  ingresos: "#ec4899",
+  impresiones: "#eab308",
   ctr: "#8b5cf6",
+};
+
+const CHART_KEY_MAP: Record<string, string> = {
+  gasto: "spend",
+  clics: "clicks",
+  conversiones: "conversions",
+  ingresos: "revenue",
+  impresiones: "impressions",
+  ctr: "ctr",
 };
 
 const ALL_KPI_KEYS = [
@@ -233,21 +242,21 @@ interface KpiConfig {
 const KPI_CONFIGS: KpiConfig[] = [
   {
     key: "spend",
-    label: "Spend",
+    label: "Gasto",
     icon: <DollarSign className="size-4" />,
     format: (v) => `$${fmtNum(v)}`,
     higherIsBetter: false,
   },
   {
     key: "revenue",
-    label: "Revenue",
+    label: "Ingresos",
     icon: <TrendingUp className="size-4" />,
     format: (v) => `$${fmtNum(v)}`,
     higherIsBetter: true,
   },
   {
     key: "profit",
-    label: "Profit",
+    label: "Ganancia",
     icon: <Zap className="size-4" />,
     format: (v) => `$${fmtNum(v)}`,
     higherIsBetter: true,
@@ -261,21 +270,21 @@ const KPI_CONFIGS: KpiConfig[] = [
   },
   {
     key: "impressions",
-    label: "Impressions",
+    label: "Impresiones",
     icon: <Eye className="size-4" />,
     format: (v) => fmtNum(v),
     higherIsBetter: true,
   },
   {
     key: "reach",
-    label: "Reach",
+    label: "Alcance",
     icon: <Users className="size-4" />,
     format: (v) => fmtNum(v),
     higherIsBetter: true,
   },
   {
     key: "clicks",
-    label: "Clicks",
+    label: "Clics",
     icon: <MousePointerClick className="size-4" />,
     format: (v) => fmtNum(v),
     higherIsBetter: true,
@@ -303,72 +312,72 @@ const KPI_CONFIGS: KpiConfig[] = [
   },
   {
     key: "conversions",
-    label: "Conversions",
+    label: "Conversiones",
     icon: <Target className="size-4" />,
     format: (v) => fmtNum(v),
     higherIsBetter: true,
   },
   {
     key: "costPerConversion",
-    label: "Cost / Conv",
+    label: "Costo / Conv",
     icon: <DollarSign className="size-4" />,
     format: (v) => `$${v.toFixed(2)}`,
     higherIsBetter: false,
   },
-  // ── Engagement ──
+  // ── Interacción ──
   {
     key: "engagement",
-    label: "Engagement",
+    label: "Interacciones",
     icon: <Zap className="size-4" />,
     format: (v) => fmtNum(v),
     higherIsBetter: true,
   },
   {
     key: "engagementRate",
-    label: "Eng. Rate",
+    label: "Tasa Interacción",
     icon: <Percent className="size-4" />,
     format: (v) => `${v.toFixed(2)}%`,
     higherIsBetter: true,
   },
   {
     key: "postReactions",
-    label: "Reactions",
+    label: "Reacciones",
     icon: <Activity className="size-4" />,
     format: (v) => fmtNum(v),
     higherIsBetter: true,
   },
   {
     key: "postComments",
-    label: "Comments",
+    label: "Comentarios",
     icon: <Activity className="size-4" />,
     format: (v) => fmtNum(v),
     higherIsBetter: true,
   },
   {
     key: "postShares",
-    label: "Shares",
+    label: "Compartidos",
     icon: <Activity className="size-4" />,
     format: (v) => fmtNum(v),
     higherIsBetter: true,
   },
-  // ── Instagram / Page ──
+  // ── Instagram / Página ──
   {
     key: "followersGained",
-    label: "Followers +",
+    label: "Seguidores +",
     icon: <Users className="size-4" />,
     format: (v) => fmtNum(v),
     higherIsBetter: true,
   },
   {
     key: "profileVisits",
-    label: "Profile Visits",
+    label: "Visitas Perfil",
     icon: <Eye className="size-4" />,
     format: (v) => fmtNum(v),
     higherIsBetter: true,
   },
   {
     key: "followerConversionRate",
-    label: "Follow Conv %",
+    label: "Conv. Seguidores %",
     icon: <Percent className="size-4" />,
     format: (v) => `${v.toFixed(2)}%`,
     higherIsBetter: true,
@@ -376,14 +385,14 @@ const KPI_CONFIGS: KpiConfig[] = [
   // ── Video ──
   {
     key: "videoViews",
-    label: "Video Views",
+    label: "Vistas de Video",
     icon: <Eye className="size-4" />,
     format: (v) => fmtNum(v),
     higherIsBetter: true,
   },
   {
     key: "videoPlays",
-    label: "Video Plays",
+    label: "Reproducciones",
     icon: <Play className="size-4" />,
     format: (v) => fmtNum(v),
     higherIsBetter: true,
@@ -397,29 +406,29 @@ const KPI_CONFIGS: KpiConfig[] = [
   },
   {
     key: "videoComplete",
-    label: "Vid Complete",
+    label: "Video Completo",
     icon: <Play className="size-4" />,
     format: (v) => fmtNum(v),
     higherIsBetter: true,
   },
   {
     key: "videoCompletionRate",
-    label: "Completion %",
+    label: "% Completado",
     icon: <Percent className="size-4" />,
     format: (v) => `${v.toFixed(1)}%`,
     higherIsBetter: true,
   },
-  // ── Fatigue ──
+  // ── Fatiga ──
   {
     key: "frequency",
-    label: "Frequency",
+    label: "Frecuencia",
     icon: <Activity className="size-4" />,
     format: (v) => v.toFixed(2),
     higherIsBetter: false,
   },
   {
     key: "creativeFatigueScore",
-    label: "Fatigue Score",
+    label: "Fatiga Creativa",
     icon: <TrendingDown className="size-4" />,
     format: (v) => `${v.toFixed(0)}/100`,
     higherIsBetter: false,
@@ -570,14 +579,14 @@ function saveVisibleKpis(keys: KpiKey[]) {
 }
 
 function loadChartMetrics(): string[] {
-  if (typeof window === "undefined") return ["spend", "clicks", "conversions", "revenue"];
+  if (typeof window === "undefined") return ["gasto", "clics", "conversiones", "ingresos"];
   try {
     const stored = localStorage.getItem(LS_KEY_CHART_METRICS);
     if (stored) return JSON.parse(stored);
   } catch {
     /* ignore */
   }
-  return ["spend", "clicks", "conversions", "revenue"];
+  return ["gasto", "clics", "conversiones", "ingresos"];
 }
 
 function saveChartMetrics(keys: string[]) {
@@ -690,7 +699,7 @@ function CustomChartTooltip({
           <span className="size-2 rounded-full" style={{ background: entry.color }} />
           <span className="text-text-secondary capitalize">{entry.name}:</span>
           <span className="text-text-primary font-medium">
-            {entry.dataKey === "spend" || entry.dataKey === "revenue" || entry.dataKey === "cpc"
+            {entry.dataKey === "spend" || entry.dataKey === "revenue" || entry.dataKey === "cpc" || entry.dataKey === "cpm"
               ? `$${fmtNum(entry.value)}`
               : fmtNum(entry.value)}
           </span>
@@ -704,16 +713,16 @@ function CustomChartTooltip({
 
 function exportCsv(daily: DailyMetric[], campaignName: string) {
   const headers = [
-    "Date",
-    "Impressions",
-    "Reach",
-    "Clicks",
+    "Fecha",
+    "Impresiones",
+    "Alcance",
+    "Clics",
     "CTR",
     "CPC",
     "CPM",
-    "Spend",
-    "Conversions",
-    "Revenue",
+    "Gasto",
+    "Conversiones",
+    "Ingresos",
     "ROAS",
   ];
   const rows = daily.map((d) =>
@@ -883,7 +892,7 @@ export default function CampaignDetailPage() {
 
   // Day-of-week aggregation for bar chart
   const dayOfWeekData = useMemo(() => {
-    const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const DAYS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
     const buckets: Record<string, { count: number; spend: number; clicks: number; conversions: number }> = {};
     DAYS.forEach((d) => (buckets[d] = { count: 0, spend: 0, clicks: 0, conversions: 0 }));
     daily.forEach((m) => {
@@ -906,9 +915,9 @@ export default function CampaignDetailPage() {
   // Funnel data
   const funnelData = useMemo(() => {
     return [
-      { name: "Impressions", value: totals.impressions, color: "#f97316" },
-      { name: "Clicks", value: totals.clicks, color: "#3b82f6" },
-      { name: "Conversions", value: totals.conversions, color: "#22c55e" },
+      { name: "Impresiones", value: totals.impressions, color: "#f97316" },
+      { name: "Clics", value: totals.clicks, color: "#3b82f6" },
+      { name: "Conversiones", value: totals.conversions, color: "#22c55e" },
     ];
   }, [totals]);
 
@@ -922,12 +931,12 @@ export default function CampaignDetailPage() {
       d.roas > (best?.roas ?? 0) ? d : best, daily[0]);
     if (bestRoas && bestRoas.roas > 0) {
       result.push({
-        text: `Best ROAS day: ${bestRoas.date} (${bestRoas.roas.toFixed(2)}x)`,
+        text: `Mejor día por ROAS: ${bestRoas.date} (${bestRoas.roas.toFixed(2)}x)`,
         type: "good",
       });
     }
 
-    // Worst day by spend (highest spend, lowest conversions ratio)
+    // Peor día por gasto (mayor gasto, menor ratio de conversiones)
     const worstDay = daily.reduce((worst, d) => {
       const ratio = d.spend > 0 ? d.conversions / d.spend : Infinity;
       const worstRatio = worst.spend > 0 ? worst.conversions / worst.spend : Infinity;
@@ -935,30 +944,30 @@ export default function CampaignDetailPage() {
     }, daily[0]);
     if (worstDay) {
       result.push({
-        text: `Least efficient day: ${worstDay.date} ($${worstDay.spend.toFixed(2)} spent, ${worstDay.conversions} conv)`,
+        text: `Día menos eficiente: ${worstDay.date} ($${worstDay.spend.toFixed(2)} gastado, ${worstDay.conversions} conv)`,
         type: "bad",
       });
     }
 
-    // Average daily spend
+    // Gasto diario promedio
     const avgSpend = totals.spend / (daily.length || 1);
     result.push({
-      text: `Average daily spend: $${avgSpend.toFixed(2)}`,
+      text: `Gasto diario promedio: $${avgSpend.toFixed(2)}`,
       type: "neutral",
     });
 
-    // Trend
+    // Tendencia
     if (daily.length >= 4) {
       const half = Math.floor(daily.length / 2);
       const sorted = [...daily].sort((a, b) => a.date.localeCompare(b.date));
       const firstHalfSpend = sorted.slice(0, half).reduce((s, d) => s + d.revenue, 0);
       const secondHalfSpend = sorted.slice(half).reduce((s, d) => s + d.revenue, 0);
       if (secondHalfSpend > firstHalfSpend * 1.1) {
-        result.push({ text: "Revenue trending upward", type: "good" });
+        result.push({ text: "Ingresos en tendencia alcista", type: "good" });
       } else if (secondHalfSpend < firstHalfSpend * 0.9) {
-        result.push({ text: "Revenue trending downward", type: "bad" });
+        result.push({ text: "Ingresos en tendencia bajista", type: "bad" });
       } else {
-        result.push({ text: "Revenue is stable", type: "neutral" });
+        result.push({ text: "Ingresos estables", type: "neutral" });
       }
     }
 
@@ -1005,9 +1014,9 @@ export default function CampaignDetailPage() {
   if (!campaign) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20">
-        <p className="text-text-dim text-sm">Campaign not found</p>
+        <p className="text-text-dim text-sm">Campaña no encontrada</p>
         <Button variant="outline" onClick={() => router.push("/app/campaigns")}>
-          Back to campaigns
+          Volver a campañas
         </Button>
       </div>
     );
@@ -1054,7 +1063,7 @@ export default function CampaignDetailPage() {
             <div className="flex items-center gap-3 mt-1">
               <Badge variant="info">{campaign.objective}</Badge>
               <span className="text-xs text-text-dim">
-                Budget: ${campaign.budget_amount?.toLocaleString()}{" "}
+                Presupuesto: ${campaign.budget_amount?.toLocaleString()}{" "}
                 {campaign.budget_currency}
               </span>
             </div>
@@ -1086,18 +1095,18 @@ export default function CampaignDetailPage() {
             {campaign.status === "ACTIVE" || campaign.status === "active" ? (
               <>
                 <Pause className="size-3.5" data-icon="inline-start" />
-                Pause
+                Pausar
               </>
             ) : (
               <>
                 <Play className="size-3.5" data-icon="inline-start" />
-                Resume
+                Reanudar
               </>
             )}
           </Button>
           <Button variant="outline" size="sm">
             <Pencil className="size-3.5" data-icon="inline-start" />
-            Edit
+            Editar
           </Button>
           <Button
             variant="outline"
@@ -1105,7 +1114,7 @@ export default function CampaignDetailPage() {
             onClick={() => exportCsv(daily, campaign.campaign_name)}
           >
             <Download className="size-3.5" data-icon="inline-start" />
-            Export
+            Exportar
           </Button>
         </div>
       </div>
@@ -1114,18 +1123,18 @@ export default function CampaignDetailPage() {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium text-text-dim uppercase tracking-wider">
-            Key Metrics
+            Métricas Clave
           </h2>
           <Popover>
             <PopoverTrigger>
               <button className="flex items-center gap-1.5 text-xs text-text-dim hover:text-text-secondary transition-colors">
                 <Settings className="size-3.5" />
-                Customize
+                Personalizar
               </button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-64">
               <PopoverHeader>
-                <PopoverTitle>Visible Metrics</PopoverTitle>
+                <PopoverTitle>Métricas Visibles</PopoverTitle>
               </PopoverHeader>
               <div className="space-y-1 mt-2">
                 {KPI_CONFIGS.map((cfg) => (
@@ -1203,7 +1212,7 @@ export default function CampaignDetailPage() {
                         ) : (
                           <TrendingDown className="size-3" />
                         )}
-                        {Math.abs(delta).toFixed(1)}% vs prev
+                        {Math.abs(delta).toFixed(1)}% vs anterior
                       </div>
                     )}
                   </GlassCard>
@@ -1218,7 +1227,7 @@ export default function CampaignDetailPage() {
       <GlassCard className="space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <h2 className="text-sm font-medium text-text-dim uppercase tracking-wider">
-            Performance Over Time
+            Rendimiento en el Tiempo
           </h2>
           <div className="flex items-center gap-2 flex-wrap">
             {Object.keys(CHART_COLORS).map((key) => (
@@ -1267,7 +1276,7 @@ export default function CampaignDetailPage() {
                 stroke="#6b7280"
                 tick={{ fontSize: 11 }}
                 tickFormatter={(v: string) =>
-                  new Date(v + "T00:00:00").toLocaleDateString("en-US", {
+                  new Date(v + "T00:00:00").toLocaleDateString("es-ES", {
                     month: "short",
                     day: "numeric",
                   })
@@ -1282,7 +1291,7 @@ export default function CampaignDetailPage() {
                   <Area
                     key={key}
                     type="monotone"
-                    dataKey={key}
+                    dataKey={CHART_KEY_MAP[key] || key}
                     name={key.charAt(0).toUpperCase() + key.slice(1)}
                     stroke={CHART_COLORS[key]}
                     fill={`url(#gradient-${key})`}
@@ -1293,7 +1302,7 @@ export default function CampaignDetailPage() {
           </ResponsiveContainer>
         ) : (
           <div className="flex items-center justify-center h-72 text-text-dim text-sm">
-            No data available for this period
+            Sin datos disponibles para este período
           </div>
         )}
       </GlassCard>
@@ -1303,7 +1312,7 @@ export default function CampaignDetailPage() {
         {/* Day of week bar chart */}
         <GlassCard className="space-y-4">
           <h2 className="text-sm font-medium text-text-dim uppercase tracking-wider">
-            By Day of Week
+            Por Día de la Semana
           </h2>
           {metricsLoading ? (
             <Skeleton className="h-56 w-full rounded-xl" />
@@ -1319,21 +1328,21 @@ export default function CampaignDetailPage() {
                 <RechartsTooltip content={<CustomChartTooltip />} />
                 <Bar
                   dataKey="avgSpend"
-                  name="Avg Spend"
+                  name="Gasto Prom."
                   fill="#f97316"
                   radius={[4, 4, 0, 0]}
                   opacity={0.8}
                 />
                 <Bar
                   dataKey="avgClicks"
-                  name="Avg Clicks"
+                  name="Clics Prom."
                   fill="#3b82f6"
                   radius={[4, 4, 0, 0]}
                   opacity={0.8}
                 />
                 <Bar
                   dataKey="avgConversions"
-                  name="Avg Conv"
+                  name="Conv Prom."
                   fill="#22c55e"
                   radius={[4, 4, 0, 0]}
                   opacity={0.8}
@@ -1346,7 +1355,7 @@ export default function CampaignDetailPage() {
         {/* Conversion Funnel */}
         <GlassCard className="space-y-4">
           <h2 className="text-sm font-medium text-text-dim uppercase tracking-wider">
-            Conversion Funnel
+            Embudo de Conversión
           </h2>
           {metricsLoading ? (
             <Skeleton className="h-56 w-full rounded-xl" />
@@ -1392,7 +1401,7 @@ export default function CampaignDetailPage() {
       <GlassCard className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium text-text-dim uppercase tracking-wider">
-            Daily Metrics
+            Métricas Diarias
           </h2>
           <Button
             variant="ghost"
@@ -1413,16 +1422,16 @@ export default function CampaignDetailPage() {
                 <TableRow className="border-white/[0.06] hover:bg-transparent">
                   {(
                     [
-                      ["date", "Date"],
-                      ["impressions", "Impressions"],
-                      ["reach", "Reach"],
-                      ["clicks", "Clicks"],
+                      ["date", "Fecha"],
+                      ["impressions", "Impresiones"],
+                      ["reach", "Alcance"],
+                      ["clicks", "Clics"],
                       ["ctr", "CTR"],
                       ["cpc", "CPC"],
                       ["cpm", "CPM"],
-                      ["spend", "Spend"],
+                      ["spend", "Gasto"],
                       ["conversions", "Conv"],
-                      ["revenue", "Revenue"],
+                      ["revenue", "Ingresos"],
                       ["roas", "ROAS"],
                     ] as [SortField, string][]
                   ).map(([field, label]) => (
@@ -1548,7 +1557,7 @@ export default function CampaignDetailPage() {
           </div>
         ) : (
           <div className="flex items-center justify-center h-32 text-text-dim text-sm">
-            No daily data available
+            Sin datos diarios disponibles
           </div>
         )}
       </GlassCard>
@@ -1559,7 +1568,7 @@ export default function CampaignDetailPage() {
           <div className="flex items-center gap-2">
             <Lightbulb className="size-4 text-warning" />
             <h2 className="text-sm font-medium text-text-dim uppercase tracking-wider">
-              Performance Insights
+              Análisis de Rendimiento
             </h2>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

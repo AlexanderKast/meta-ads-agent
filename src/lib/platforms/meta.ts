@@ -370,17 +370,17 @@ function parseInsightRow(d: Record<string, unknown>) {
     return sum;
   }, 0);
   const postShares = actions.reduce((sum, a) => {
-    if (a.action_type === 'post') return sum + Number(a.value);
+    if (a.action_type === 'post' || a.action_type === 'onsite_conversion.post_save') return sum + Number(a.value);
     return sum;
   }, 0);
 
-  // Instagram
+  // Instagram / Page
   const followersGained = actions.reduce((sum, a) => {
-    if (a.action_type === 'like' || a.action_type === 'page_like') return sum + Number(a.value);
+    if (a.action_type === 'follow' || a.action_type === 'like' || a.action_type === 'page_like') return sum + Number(a.value);
     return sum;
   }, 0);
   const profileVisits = actions.reduce((sum, a) => {
-    if (a.action_type === 'page_engagement') return sum + Number(a.value);
+    if (a.action_type === 'landing_page_view' || a.action_type === 'link_click') return sum + Number(a.value);
     return sum;
   }, 0);
 

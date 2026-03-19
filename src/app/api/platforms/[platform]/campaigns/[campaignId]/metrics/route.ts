@@ -196,13 +196,15 @@ export async function GET(
 
   // Step 3: If still not found AND accountId is provided, fetch directly from Meta API
   if (!mapping && accountId) {
-    // Look up connected account by platform_account_id
-    const { data: account } = await supabase
-      .from("connected_accounts")
-      .select("*")
-      .eq("platform_account_id", accountId)
-      .eq("user_id", userId)
-      .single();
+    // Look up connected account by UUID or platform_account_id
+    const isAccountUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(accountId);
+    const accountQuery = supabase.from("connected_accounts").select("*").eq("user_id", userId);
+    if (isAccountUUID) {
+      accountQuery.eq("id", accountId);
+    } else {
+      accountQuery.eq("platform_account_id", accountId);
+    }
+    const { data: account } = await accountQuery.single();
 
     if (!account) return Response.json({ error: "Cuenta no encontrada" }, { status: 404 });
 
@@ -211,8 +213,8 @@ export async function GET(
       const token = decryptToken(account.access_token);
 
       const [metrics, prevMetrics] = await Promise.all([
-        client.getMetrics({ accessToken: token }, campaignId, accountId, current),
-        client.getMetrics({ accessToken: token }, campaignId, accountId, previous),
+        client.getMetrics({ accessToken: token }, campaignId, account.platform_account_id, current),
+        client.getMetrics({ accessToken: token }, campaignId, account.platform_account_id, previous),
       ]);
 
       const campaign = {

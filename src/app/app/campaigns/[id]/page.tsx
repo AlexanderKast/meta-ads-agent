@@ -363,21 +363,21 @@ const KPI_CONFIGS: KpiConfig[] = [
   // ── Instagram / Página ──
   {
     key: "followersGained",
-    label: "Seguidores +",
+    label: "Me gusta netos",
     icon: <Users className="size-4" />,
     format: (v) => fmtNum(v),
     higherIsBetter: true,
   },
   {
     key: "profileVisits",
-    label: "Visitas Perfil",
+    label: "Clics en enlace",
     icon: <Eye className="size-4" />,
     format: (v) => fmtNum(v),
     higherIsBetter: true,
   },
   {
     key: "followerConversionRate",
-    label: "Conv. Seguidores %",
+    label: "Conv. Clics %",
     icon: <Percent className="size-4" />,
     format: (v) => `${v.toFixed(2)}%`,
     higherIsBetter: true,

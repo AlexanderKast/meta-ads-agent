@@ -354,7 +354,12 @@ function parseInsightRow(d: Record<string, unknown>) {
   const conversions = extractConversions(actions);
   const revenue = extractRevenue(actionValues);
   const costPerConversion = extractCostPerConversion(costPerAction);
-  const videoViews = extractVideoViews(d.video_p25_watched_actions as Array<{ action_type: string; value: string }> | undefined);
+  // Use video_view from actions (3-second views) as primary; fallback to video_p25
+  const videoViewsFromActions = actions.reduce((sum, a) => {
+    if (a.action_type === 'video_view') return sum + Number(a.value);
+    return sum;
+  }, 0);
+  const videoViews = videoViewsFromActions || extractVideoViews(d.video_p25_watched_actions as Array<{ action_type: string; value: string }> | undefined);
 
   // Engagement from actions
   const engagement = actions.reduce((sum, a) => {
@@ -375,12 +380,14 @@ function parseInsightRow(d: Record<string, unknown>) {
   }, 0);
 
   // Instagram / Page
+  // Note: Instagram follower gains are NOT available via Marketing API.
+  // Using post_net_like (net page/post likes) as closest available metric.
   const followersGained = actions.reduce((sum, a) => {
-    if (a.action_type === 'follow' || a.action_type === 'like' || a.action_type === 'page_like') return sum + Number(a.value);
+    if (a.action_type === 'onsite_conversion.post_net_like') return sum + Number(a.value);
     return sum;
   }, 0);
   const profileVisits = actions.reduce((sum, a) => {
-    if (a.action_type === 'landing_page_view' || a.action_type === 'link_click') return sum + Number(a.value);
+    if (a.action_type === 'link_click') return sum + Number(a.value);
     return sum;
   }, 0);
 
